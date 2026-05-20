@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+  <title>PréstamosFácil</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#1f3a2e"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="PréstamosFácil"/>
+
+  <!-- Iconos para iOS (Apple no lee el manifest) -->
+  <link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192.png"/>
+  <link rel="apple-touch-icon" sizes="512x512" href="icons/icon-512.png"/>
+
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+
+<!-- NAVEGACIÓN -->
+<nav>
+  <h1>💰 PréstamosFácil</h1>
+  <div>
+    <button onclick="mostrarSeccion('clientes')">Clientes</button>
+    <button onclick="mostrarSeccion('prestamo')">Nuevo Préstamo</button>
+    <button onclick="mostrarSeccion('abonos')">Abonos</button>
+    <button onclick="abrirLogin()">Resumen 🔒</button>
+  </div>
+</nav>
+
+<!-- BANNER INSTALAR APP (se muestra solo si el navegador lo soporta) -->
+<div id="banner-instalar" style="display:none">
+  <span>📲 Instala la app en tu celular</span>
+  <div>
+    <button id="btn-instalar">Instalar</button>
+    <button id="btn-cerrar-banner">✕</button>
+  </div>
+</div>
+
+<!-- SECCIÓN: CLIENTES -->
+<section id="sec-clientes">
+  <h2>Registro de Clientes</h2>
+  <div>
+    <label>Nombre completo</label>
+    <input type="text" id="cli-nombre" placeholder="Ej: Juan García"/>
+
+    <label>Cédula</label>
+    <input type="text" id="cli-cedula" placeholder="Ej: 123456789" inputmode="numeric"/>
+
+    <label>Dirección</label>
+    <input type="text" id="cli-direccion" placeholder="Ej: Calle 10 #5-20"/>
+
+    <button onclick="registrarCliente()">Registrar Cliente</button>
+  </div>
+
+  <h3>Clientes registrados</h3>
+  <table id="tabla-clientes">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Nombre</th>
+        <th>Cédula</th>
+        <th>Dirección</th>
+        <th>Acción</th>
+      </tr>
+    </thead>
+    <tbody id="body-clientes"></tbody>
+  </table>
+</section>
+
+<!-- SECCIÓN: NUEVO PRÉSTAMO -->
+<section id="sec-prestamo" style="display:none">
+  <h2>Nuevo Préstamo</h2>
+  <div>
+    <label>Seleccionar Cliente</label>
+    <select id="pres-cliente"></select>
+
+    <label>Capital prestado ($)</label>
+    <input type="number" id="pres-capital" placeholder="Ej: 1000000" inputmode="numeric" oninput="calcularPrestamo()"/>
+
+    <label>Tasa de interés (%)</label>
+    <input type="number" id="pres-interes" value="10" inputmode="decimal" oninput="calcularPrestamo()"/>
+
+    <label>Número de cuotas (meses)</label>
+    <input type="number" id="pres-cuotas" placeholder="Ej: 12" inputmode="numeric" oninput="calcularPrestamo()"/>
+  </div>
+
+  <div id="proyeccion" style="display:none">
+    <h3>Resumen del préstamo</h3>
+    <p>Capital prestado: <strong id="res-capital"></strong></p>
+    <p>Interés por mes: <strong id="res-interes-mensual"></strong></p>
+    <p>Interés total acumulado: <strong id="res-interes"></strong></p>
+    <p>Total deuda (capital + intereses): <strong id="res-total"></strong></p>
+    <p>Cuota mensual: <strong id="res-cuota"></strong></p>
+  </div>
+
+  <button onclick="registrarPrestamo()">Guardar Préstamo</button>
+</section>
+
+<!-- SECCIÓN: ABONOS -->
+<section id="sec-abonos" style="display:none">
+  <h2>Registrar Abono</h2>
+  <div>
+    <label>Seleccionar Cliente / Préstamo</label>
+    <select id="abo-prestamo" onchange="renderAbonos()"></select>
+
+    <label>Monto del abono ($)</label>
+    <input type="number" id="abo-monto" placeholder="Ej: 100000" inputmode="numeric"/>
+
+    <button onclick="registrarAbono()">Registrar Abono</button>
+  </div>
+
+  <h3>Historial de abonos</h3>
+  <table id="tabla-abonos">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Fecha</th>
+        <th>Cliente</th>
+        <th>Monto Abonado</th>
+        <th>Saldo Restante</th>
+      </tr>
+    </thead>
+    <tbody id="body-abonos"></tbody>
+  </table>
+</section>
+
+<!-- SECCIÓN: RESUMEN -->
+<section id="sec-resumen" style="display:none">
+  <h2>Resumen de Préstamos</h2>
+
+  <div class="cards-dashboard">
+    <div class="card">
+      <h3>Total Prestado</h3>
+      <p id="dash-prestado">$0</p>
+    </div>
+    <div class="card">
+      <h3>Total Recuperado</h3>
+      <p id="dash-recuperado">$0</p>
+    </div>
+    <div class="card">
+      <h3>Saldo Pendiente</h3>
+      <p id="dash-pendiente">$0</p>
+    </div>
+    <div class="card">
+      <h3>Clientes</h3>
+      <p id="dash-clientes">0</p>
+    </div>
+  </div>
+
+  <table id="tabla-resumen">
+    <thead>
+      <tr>
+        <th>Cliente</th>
+        <th>Capital</th>
+        <th>Total deuda</th>
+        <th>Abonado</th>
+        <th>Saldo pendiente</th>
+        <th>Estado</th>
+      </tr>
+    </thead>
+    <tbody id="body-resumen"></tbody>
+  </table>
+</section>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- NAVEGACIÓN INFERIOR MÓVIL -->
+<nav id="nav-bottom">
+  <button onclick="mostrarSeccion('clientes')" data-sec="clientes">
+    <span>👥</span>
+    <span>Clientes</span>
+  </button>
+  <button onclick="mostrarSeccion('prestamo')" data-sec="prestamo">
+    <span>💵</span>
+    <span>Préstamo</span>
+  </button>
+  <button onclick="mostrarSeccion('abonos')" data-sec="abonos">
+    <span>💳</span>
+    <span>Abonos</span>
+  </button>
+  <button onclick="abrirLogin()" data-sec="resumen">
+    <span>📊</span>
+    <span>Resumen</span>
+  </button>
+</nav>
+
+<!-- LOGIN -->
+<div id="modal-login" class="modal-login" style="display:none">
+  <div class="login-box">
+    <h2>Acceso Resumen 🔒</h2>
+    <label>Usuario</label>
+    <input type="text" id="login-user" placeholder="Ingrese usuario" autocomplete="username"/>
+    <label>Contraseña</label>
+    <input type="password" id="login-pass" placeholder="Ingrese contraseña" autocomplete="current-password"/>
+    <div class="login-buttons">
+      <button onclick="validarLogin()">Ingresar</button>
+      <button onclick="cerrarLogin()" class="btn-cancelar">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script src="js/pwa.js"></script>
+</body>
+</html>

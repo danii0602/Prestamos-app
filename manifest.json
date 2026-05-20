@@ -1,0 +1,39 @@
+{
+  "name": "PréstamosFácil",
+  "short_name": "Préstamos",
+  "description": "Gestión de préstamos, clientes y abonos",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f5f5f3",
+  "theme_color": "#1f3a2e",
+  "orientation": "portrait-primary",
+  "lang": "es",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nuevo Préstamo",
+      "short_name": "Préstamo",
+      "url": "./index.html#prestamo",
+      "description": "Registrar un nuevo préstamo"
+    },
+    {
+      "name": "Registrar Abono",
+      "short_name": "Abono",
+      "url": "./index.html#abonos",
+      "description": "Registrar un abono"
+    }
+  ]
+}
