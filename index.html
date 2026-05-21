@@ -38,11 +38,11 @@
 <section id="sec-clientes">
   <h2>Registro de Clientes</h2>
   <div>
-    <label>Nombre completo</label>
+    <label for="cli-nombre">Nombre completo</label>
     <input type="text" id="cli-nombre" placeholder="Ej: Juan García"/>
-    <label>Cédula</label>
+    <label for="cli-cedula">Cédula</label>
     <input type="text" id="cli-cedula" placeholder="Ej: 123456789" inputmode="numeric"/>
-    <label>Dirección</label>
+    <label for="cli-direccion">Dirección</label>
     <input type="text" id="cli-direccion" placeholder="Ej: Calle 10 #5-20"/>
     <button onclick="registrarCliente()">Registrar Cliente</button>
   </div>
@@ -57,13 +57,13 @@
 <section id="sec-prestamo" style="display:none">
   <h2>Nuevo Préstamo</h2>
   <div>
-    <label>Seleccionar Cliente</label>
+    <label for="pres-cliente">Seleccionar Cliente</label>
     <select id="pres-cliente"></select>
-    <label>Capital prestado ($)</label>
+    <label for="pres-capital">Capital prestado ($)</label>
     <input type="number" id="pres-capital" placeholder="Ej: 1000000" inputmode="numeric" oninput="calcularPrestamo()"/>
-    <label>Tasa de interés (%)</label>
+    <label for="pres-interes">Tasa de interés (%)</label>
     <input type="number" id="pres-interes" value="10" inputmode="decimal" oninput="calcularPrestamo()"/>
-    <label>Número de cuotas (meses)</label>
+    <label for="pres-cuotas">Número de cuotas (meses)</label>
     <input type="number" id="pres-cuotas" placeholder="Ej: 12" inputmode="numeric" oninput="calcularPrestamo()"/>
   </div>
   <div id="proyeccion" style="display:none">
@@ -73,6 +73,9 @@
     <p>Interés total acumulado: <strong id="res-interes"></strong></p>
     <p>Total deuda (capital + intereses): <strong id="res-total"></strong></p>
     <p>Cuota mensual: <strong id="res-cuota"></strong></p>
+  <button onclick="descargarPDFPrestamo()" style="margin-top:14px; background:#c0392b; width:100%;">
+      📄 Descargar PDF del préstamo
+    </button>
   </div>
   <button onclick="registrarPrestamo()">Guardar Préstamo</button>
 </section>
@@ -81,9 +84,9 @@
 <section id="sec-abonos" style="display:none">
   <h2>Registrar Abono</h2>
   <div>
-    <label>Seleccionar Cliente / Préstamo</label>
+    <label for="abo-prestamo">Seleccionar Cliente / Préstamo</label>
     <select id="abo-prestamo" onchange="renderAbonos()"></select>
-    <label>Monto del abono ($)</label>
+    <label for="abo-monto">Monto del abono ($)</label>
     <input type="number" id="abo-monto" placeholder="Ej: 100000" inputmode="numeric"/>
     <button onclick="registrarAbono()">Registrar Abono</button>
   </div>
@@ -97,14 +100,21 @@
 <!-- RESUMEN -->
 <section id="sec-resumen" style="display:none">
   <h2>Resumen de Préstamos</h2>
+
   <div class="cards-dashboard">
     <div class="card"><h3>Total Prestado</h3><p id="dash-prestado">$0</p></div>
     <div class="card"><h3>Total Recuperado</h3><p id="dash-recuperado">$0</p></div>
     <div class="card"><h3>Saldo Pendiente</h3><p id="dash-pendiente">$0</p></div>
     <div class="card"><h3>Clientes</h3><p id="dash-clientes">0</p></div>
   </div>
+
+  <!-- BOTÓN EXPORTAR PDF -->
+  <button onclick="exportarPDF()" style="margin-bottom:20px; background:#c0392b;">
+    📄 Exportar PDF
+  </button>
+
   <table id="tabla-resumen">
-    <thead><tr><th>Cliente</th><th>Capital</th><th>Total deuda</th><th>Abonado</th><th>Saldo pendiente</th><th>Estado</th></tr></thead>
+    <thead><tr><th>Cliente</th><th>Capital</th><th>Total deuda</th><th>Abonado</th><th>Saldo pendiente</th><th>Estado</th><th>Acción</th></tr></thead>
     <tbody id="body-resumen"></tbody>
   </table>
 </section>
@@ -115,9 +125,9 @@
 <div id="modal-login" class="modal-login" style="display:none">
   <div class="login-box">
     <h2>Acceso Resumen 🔒</h2>
-    <label>Usuario</label>
+    <label for="login-user">Usuario</label>
     <input type="text" id="login-user" placeholder="Ingrese usuario" autocomplete="username"/>
-    <label>Contraseña</label>
+    <label for="login-pass">Contraseña</label>
     <input type="password" id="login-pass" placeholder="Ingrese contraseña" autocomplete="current-password"/>
     <div class="login-buttons">
       <button onclick="validarLogin()">Ingresar</button>
@@ -134,7 +144,10 @@
   <button onclick="abrirLogin()"              data-sec="resumen"><span>📊</span><span>Resumen</span></button>
 </nav>
 
-<!-- Firebase como módulo ES -->
+<!-- jsPDF para exportar PDF en el navegador -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
 <script type="module" src="js/app.js"></script>
 <script src="js/pwa.js"></script>
 </body>
