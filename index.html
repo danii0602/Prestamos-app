@@ -87,10 +87,13 @@
     No se encontraron clientes con ese criterio.
   </p>
 
-  <table id="tabla-clientes">
+  <!-- Tabla desktop -->
+  <table id="tabla-clientes" class="tabla-desktop">
     <thead><tr><th>#</th><th>Nombre</th><th>Cédula</th><th>Dirección</th><th>Acción</th></tr></thead>
     <tbody id="body-clientes"></tbody>
   </table>
+  <!-- Tarjetas móvil -->
+  <div id="clientes-movil" class="tabla-movil"></div>
 </section>
 
 <!-- PRÉSTAMO -->
@@ -144,10 +147,11 @@
     <button onclick="registrarAbono()">Registrar Abono</button>
   </div>
   <h3>Historial de abonos</h3>
-  <table id="tabla-abonos">
-    <thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>Monto Abonado</th><th>Saldo Restante</th></tr></thead>
+  <table id="tabla-abonos" class="tabla-desktop">
+    <thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>Préstamo</th><th>Monto Abonado</th><th>Saldo Restante</th></tr></thead>
     <tbody id="body-abonos"></tbody>
   </table>
+  <div id="abonos-movil" class="tabla-movil"></div>
 </section>
 
 <!-- RESUMEN -->
@@ -249,7 +253,7 @@
       🔑 Cambiar clave Resumen
     </button>
   </div>
-  <table id="tabla-resumen">
+  <table id="tabla-resumen" class="tabla-desktop">
     <thead>
       <tr>
         <th>Cliente</th><th>Capital</th><th>Total deuda</th>
@@ -259,6 +263,7 @@
     </thead>
     <tbody id="body-resumen"></tbody>
   </table>
+  <div id="resumen-movil" class="tabla-movil"></div>
 </section>
 
 <div id="toast"></div>

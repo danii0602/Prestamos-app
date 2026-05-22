@@ -148,9 +148,11 @@ window.registrarCliente = async function(){
 }
 
 function renderClientes(){
-  const tbody = document.getElementById('body-clientes');
+  const tbody   = document.getElementById('body-clientes');
+  const movil   = document.getElementById('clientes-movil');
   if(!tbody) return;
   tbody.innerHTML = '';
+  if(movil) movil.innerHTML = '';
 
   if(clientes.length === 0){
     const tr = document.createElement('tr');
@@ -158,10 +160,13 @@ function renderClientes(){
     td.colSpan = 5; td.style.textAlign = 'center';
     td.style.color = '#999'; td.style.padding = '20px';
     td.textContent = 'No hay clientes registrados';
-    tr.appendChild(td); tbody.appendChild(tr); return;
+    tr.appendChild(td); tbody.appendChild(tr);
+    if(movil){ movil.innerHTML = '<p style="text-align:center;color:#999;padding:20px;">No hay clientes registrados</p>'; }
+    return;
   }
 
   clientes.forEach((c, i) => {
+    // Fila tabla desktop
     const tr = document.createElement('tr');
     [i+1, c.nombre, c.cedula, c.direccion].forEach(val => {
       const td = document.createElement('td'); td.textContent = val; tr.appendChild(td);
@@ -172,6 +177,27 @@ function renderClientes(){
     btn.onclick = () => eliminarCliente(c._key, c.id, c.nombre);
     tdBtn.appendChild(btn); tr.appendChild(tdBtn);
     tbody.appendChild(tr);
+
+    // Tarjeta móvil
+    if(movil){
+      const card = document.createElement('div');
+      card.className = 'fila-card';
+      card.innerHTML = `
+        <div class="fila-header">
+          <span class="nombre-cliente">${c.nombre}</span>
+          <span class="estado-activo">#${i+1}</span>
+        </div>
+        <div class="fila-dato"><span>Cédula</span><span>${c.cedula}</span></div>
+        <div class="fila-dato"><span>Dirección</span><span>${c.direccion}</span></div>
+        <div class="fila-acciones">
+          <button onclick="eliminarCliente('${c._key}', ${c.id}, '${c.nombre}')"
+            style="background:transparent;border:1px solid var(--danger);color:var(--danger);">
+            🗑️ Eliminar
+          </button>
+        </div>
+      `;
+      movil.appendChild(card);
+    }
   });
 }
 
@@ -446,21 +472,47 @@ window.renderAbonos = function(){
     infoEl.style.display = 'none';
   }
 
+  const movil = document.getElementById('abonos-movil');
+  if(movil) movil.innerHTML = '';
+
   if(filtrados.length === 0){
     const tr = document.createElement('tr');
     const td = document.createElement('td');
-    td.colSpan = 5; td.style.textAlign = 'center';
+    td.colSpan = 6; td.style.textAlign = 'center';
     td.style.color = '#999'; td.style.padding = '20px';
     td.textContent = 'Sin abonos registrados';
-    tr.appendChild(td); tbody.appendChild(tr); return;
+    tr.appendChild(td); tbody.appendChild(tr);
+    if(movil) movil.innerHTML = '<p style="text-align:center;color:#999;padding:20px;">Sin abonos registrados</p>';
+    return;
   }
 
   filtrados.forEach((a, i) => {
+    // Buscar nombre del préstamo
+    const pres = prestamos.find(p => p.id === a.prestamoId);
+    const nombrePres = pres ? `${pres.clienteNombre} — ${moneda(pres.capital)}` : a.clienteNombre;
+
+    // Fila desktop
     const tr = document.createElement('tr');
-    [i+1, a.fecha, a.clienteNombre, moneda(a.monto), moneda(a.saldoRestante)].forEach(val => {
+    [i+1, a.fecha, a.clienteNombre, nombrePres, moneda(a.monto), moneda(a.saldoRestante)].forEach(val => {
       const td = document.createElement('td'); td.textContent = val; tr.appendChild(td);
     });
     tbody.appendChild(tr);
+
+    // Tarjeta móvil
+    if(movil){
+      const card = document.createElement('div');
+      card.className = 'fila-card';
+      card.innerHTML = `
+        <div class="fila-header">
+          <span class="nombre-cliente">${a.clienteNombre}</span>
+          <span style="font-size:.8rem;color:#999;">${a.fecha}</span>
+        </div>
+        <div class="fila-dato"><span>Préstamo</span><span>${nombrePres}</span></div>
+        <div class="fila-dato"><span>Monto abonado</span><span style="color:var(--success);font-weight:600;">${moneda(a.monto)}</span></div>
+        <div class="fila-dato"><span>Saldo restante</span><span style="color:#d68910;font-weight:600;">${moneda(a.saldoRestante)}</span></div>
+      `;
+      movil.appendChild(card);
+    }
   });
 }
 
@@ -469,9 +521,11 @@ window.renderAbonos = function(){
 // =========================
 
 function renderResumen(){
-  const tbody = document.getElementById('body-resumen');
+  const tbody  = document.getElementById('body-resumen');
+  const movilR = document.getElementById('resumen-movil');
   if(!tbody) return;
   tbody.innerHTML = '';
+  if(movilR) movilR.innerHTML = '';
 
   if(prestamos.length === 0){
     const tr = document.createElement('tr');
@@ -479,7 +533,9 @@ function renderResumen(){
     td.colSpan = 8; td.style.textAlign = 'center';
     td.style.color = '#999'; td.style.padding = '20px';
     td.textContent = 'No hay préstamos registrados';
-    tr.appendChild(td); tbody.appendChild(tr); return;
+    tr.appendChild(td); tbody.appendChild(tr);
+    if(movilR) movilR.innerHTML = '<p style="text-align:center;color:#999;padding:20px;">No hay préstamos registrados</p>';
+    return;
   }
 
   prestamos.forEach(p => {
@@ -537,6 +593,41 @@ function renderResumen(){
 
     tr.appendChild(tdAcc);
     tbody.appendChild(tr);
+
+    // Tarjeta móvil resumen
+    const movilR = document.getElementById('resumen-movil');
+    if(movilR){
+      const bgCard = cuota && cuota.vencida ? '#fdecea' : cuota && cuota.alerta ? '#fef9e7' : '#fff';
+      const card = document.createElement('div');
+      card.className = 'fila-card';
+      card.style.background = bgCard;
+
+      const botonesHTML = p.estado === 'Activo' && p.saldo > 0 ? `
+        <button onclick="abrirModalRenovar(${JSON.stringify(p).replace(/"/g,'&quot;')})"
+          style="background:transparent;border:1px solid #1f3a2e;color:#1f3a2e;flex:1;">
+          🔄 Renovar
+        </button>
+        <button onclick="marcarComoPagado(${JSON.stringify(p).replace(/"/g,'&quot;')})"
+          style="background:transparent;border:1px solid #27ae60;color:#27ae60;flex:1;">
+          ✅ Pagado
+        </button>` : '';
+
+      const cuotaTexto = p.estado === 'Activo' && p.diaPago ? cuota.texto : (p.estado === 'Pagado' ? '—' : 'Sin día fijado');
+
+      card.innerHTML = `
+        <div class="fila-header">
+          <span class="nombre-cliente">${p.clienteNombre}</span>
+          <span class="${p.estado === 'Pagado' ? 'estado-pagado' : 'estado-activo'}">${p.estado}</span>
+        </div>
+        <div class="fila-dato"><span>Capital</span><span>${moneda(p.capital)}</span></div>
+        <div class="fila-dato"><span>Total deuda</span><span>${moneda(p.total)}</span></div>
+        <div class="fila-dato"><span>Abonado</span><span style="color:var(--success)">${moneda(abonado)}</span></div>
+        <div class="fila-dato"><span>Saldo pendiente</span><span style="color:#d68910;font-weight:600">${moneda(p.saldo)}</span></div>
+        <div class="fila-dato"><span>Próxima cuota</span><span style="font-size:.82rem">${cuotaTexto}</span></div>
+        ${botonesHTML ? `<div class="fila-acciones">${botonesHTML}</div>` : ''}
+      `;
+      movilR.appendChild(card);
+    }
   });
 }
 
