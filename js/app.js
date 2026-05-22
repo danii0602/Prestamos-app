@@ -4,7 +4,7 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
-  getDatabase, ref, set, push, onValue, remove, update
+  getDatabase, ref, push, onValue, remove, update
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
@@ -21,7 +21,7 @@ const app = initializeApp(firebaseConfig);
 const db  = getDatabase(app);
 
 // =========================
-// ESTADO LOCAL (cache)
+// ESTADO LOCAL
 // =========================
 
 let clientes  = [];
@@ -29,7 +29,7 @@ let prestamos = [];
 let abonos    = [];
 
 // =========================
-// ESCUCHAR CAMBIOS EN TIEMPO REAL
+// ESCUCHAR FIREBASE EN TIEMPO REAL
 // =========================
 
 onValue(ref(db, 'clientes'), snap => {
@@ -97,19 +97,11 @@ window.registrarCliente = async function(){
   const cedula    = document.getElementById('cli-cedula').value.trim();
   const direccion = document.getElementById('cli-direccion').value.trim();
 
-  if(!nombre || !cedula || !direccion){
-    toast('Completa todos los campos', false); return;
-  }
-  if(!/^\d+$/.test(cedula)){
-    toast('La cédula solo debe contener números', false); return;
-  }
-  if(clientes.find(c => c.cedula === cedula)){
-    toast('La cédula ya está registrada', false); return;
-  }
+  if(!nombre || !cedula || !direccion){ toast('Completa todos los campos', false); return; }
+  if(!/^\d+$/.test(cedula)){ toast('La cédula solo debe contener números', false); return; }
+  if(clientes.find(c => c.cedula === cedula)){ toast('La cédula ya está registrada', false); return; }
 
-  await push(ref(db, 'clientes'), {
-    id: Date.now(), nombre, cedula, direccion
-  });
+  await push(ref(db, 'clientes'), { id: Date.now(), nombre, cedula, direccion });
 
   document.getElementById('cli-nombre').value    = '';
   document.getElementById('cli-cedula').value    = '';
@@ -134,8 +126,7 @@ function renderClientes(){
   clientes.forEach((c, i) => {
     const tr = document.createElement('tr');
     [i+1, c.nombre, c.cedula, c.direccion].forEach(val => {
-      const td = document.createElement('td');
-      td.textContent = val; tr.appendChild(td);
+      const td = document.createElement('td'); td.textContent = val; tr.appendChild(td);
     });
     const tdBtn = document.createElement('td');
     const btn   = document.createElement('button');
@@ -148,17 +139,12 @@ function renderClientes(){
 
 window.eliminarCliente = async function(key, clienteId, nombre){
   if(!confirm(`¿Eliminar a ${nombre} y todos sus préstamos?`)) return;
-
-  // Eliminar préstamos del cliente y sus abonos
   const presDelCliente = prestamos.filter(p => p.clienteId === clienteId);
   for(const p of presDelCliente){
     const abonosDelPres = abonos.filter(a => a.prestamoId === p.id);
-    for(const a of abonosDelPres){
-      await remove(ref(db, 'abonos/' + a._key));
-    }
+    for(const a of abonosDelPres) await remove(ref(db, 'abonos/' + a._key));
     await remove(ref(db, 'prestamos/' + p._key));
   }
-
   await remove(ref(db, 'clientes/' + key));
   toast('Cliente y sus datos eliminados');
 }
@@ -173,8 +159,7 @@ function llenarSelectClientes(){
   sel.innerHTML = '<option value="">-- Seleccionar cliente --</option>';
   clientes.forEach(c => {
     const opt = document.createElement('option');
-    opt.value = c.id; opt.textContent = c.nombre;
-    sel.appendChild(opt);
+    opt.value = c.id; opt.textContent = c.nombre; sel.appendChild(opt);
   });
 }
 
@@ -206,9 +191,7 @@ window.registrarPrestamo = async function(){
   const interes   = parseFloat(document.getElementById('pres-interes').value);
   const cuotas    = parseInt(document.getElementById('pres-cuotas').value);
 
-  if(!clienteId || !capital || !interes || !cuotas){
-    toast('Completa todos los campos', false); return;
-  }
+  if(!clienteId || !capital || !interes || !cuotas){ toast('Completa todos los campos', false); return; }
   if(capital<=0){ toast('Capital inválido', false); return; }
   if(interes<=0){ toast('Interés inválido', false); return; }
   if(cuotas<=0){  toast('Número de cuotas inválido', false); return; }
@@ -221,13 +204,9 @@ window.registrarPrestamo = async function(){
   const total          = capital + interesTotal;
 
   await push(ref(db, 'prestamos'), {
-    id: Date.now(),
-    clienteId,
-    clienteNombre: cliente.nombre,
-    capital, interes, cuotas, total,
-    saldo: total,
-    estado: 'Activo',
-    fecha: new Date().toLocaleDateString('es-CO')
+    id: Date.now(), clienteId, clienteNombre: cliente.nombre,
+    capital, interes, cuotas, total, saldo: total,
+    estado: 'Activo', fecha: new Date().toLocaleDateString('es-CO')
   });
 
   document.getElementById('pres-capital').value = '';
@@ -235,6 +214,94 @@ window.registrarPrestamo = async function(){
   document.getElementById('pres-cuotas').value  = '';
   document.getElementById('proyeccion').style.display = 'none';
   toast('Préstamo registrado ✓');
+}
+
+// =========================
+// DESCARGAR PDF DEL PRÉSTAMO
+// =========================
+
+window.descargarPDFPrestamo = function(){
+  const clienteId = parseInt(document.getElementById('pres-cliente').value);
+  const capital   = parseFloat(document.getElementById('pres-capital').value);
+  const interes   = parseFloat(document.getElementById('pres-interes').value);
+  const cuotas    = parseInt(document.getElementById('pres-cuotas').value);
+
+  if(!clienteId || !capital || !interes || !cuotas){
+    toast('Completa los datos del préstamo primero', false); return;
+  }
+
+  const cliente = clientes.find(c => c.id === clienteId);
+  if(!cliente){ toast('Cliente no encontrado', false); return; }
+
+  const interesMensual = capital * (interes / 100);
+  const interesTotal   = interesMensual * cuotas;
+  const total          = capital + interesTotal;
+  const cuotaMensual   = total / cuotas;
+  const fecha = new Date().toLocaleDateString('es-CO', { year:'numeric', month:'long', day:'numeric' });
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  // Encabezado
+  doc.setFillColor(31, 58, 46);
+  doc.rect(0, 0, 210, 32, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(20); doc.setFont('helvetica', 'bold');
+  doc.text('PréstamosFácil', 14, 14);
+  doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+  doc.text('Comprobante de Préstamo', 14, 24);
+  doc.text('Fecha: ' + fecha, 150, 24);
+
+  // Datos del cliente
+  doc.setTextColor(0,0,0);
+  doc.setFillColor(237, 243, 239);
+  doc.rect(14, 38, 182, 8, 'F');
+  doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+  doc.text('DATOS DEL CLIENTE', 16, 44);
+  doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+  doc.text('Nombre:',    16, 56); doc.setFont('helvetica','bold'); doc.text(cliente.nombre,    55, 56);
+  doc.setFont('helvetica','normal');
+  doc.text('Cédula:',    16, 64); doc.setFont('helvetica','bold'); doc.text(cliente.cedula,    55, 64);
+  doc.setFont('helvetica','normal');
+  doc.text('Dirección:', 16, 72); doc.setFont('helvetica','bold'); doc.text(cliente.direccion, 55, 72);
+
+  // Datos del préstamo
+  doc.setFillColor(237, 243, 239);
+  doc.rect(14, 80, 182, 8, 'F');
+  doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+  doc.text('DETALLE DEL PRÉSTAMO', 16, 86);
+
+  doc.autoTable({
+    startY: 92,
+    head: [['Concepto', 'Valor']],
+    body: [
+      ['Capital prestado',         moneda(capital)],
+      ['Tasa de interés mensual',  interes + '%'],
+      ['Interés mensual',          moneda(interesMensual)],
+      ['Número de cuotas',         cuotas + ' meses'],
+      ['Interés total acumulado',  moneda(interesTotal)],
+      ['Total deuda',              moneda(total)],
+      ['Cuota mensual a pagar',    moneda(cuotaMensual)],
+    ],
+    headStyles: { fillColor: [31,58,46], textColor: 255, fontStyle: 'bold' },
+    bodyStyles: { fontSize: 10 },
+    alternateRowStyles: { fillColor: [245,245,243] },
+    columnStyles: { 0: { fontStyle:'bold', cellWidth:100 }, 1: { halign:'right' } }
+  });
+
+  const finalY = doc.lastAutoTable.finalY + 16;
+  doc.setDrawColor(31,58,46);
+  doc.line(14, finalY+20, 90, finalY+20);
+  doc.line(120, finalY+20, 196, finalY+20);
+  doc.setFontSize(9); doc.setTextColor(100);
+  doc.text('Firma del cliente', 30, finalY+26);
+  doc.text('Firma del prestamista', 138, finalY+26);
+
+  doc.setFontSize(8); doc.setTextColor(150);
+  doc.text('PréstamosFácil  |  Generado el ' + fecha, 105, 285, { align:'center' });
+
+  doc.save('prestamo-' + cliente.nombre.replace(/ /g,'_') + '-' + new Date().toISOString().slice(0,10) + '.pdf');
+  toast('PDF descargado ✓');
 }
 
 // =========================
@@ -266,20 +333,15 @@ window.registrarAbono = async function(){
     toast('El abono supera el saldo (' + moneda(prestamo.saldo) + ')', false); return;
   }
 
-  const nuevoSaldo  = prestamo.saldo - monto;
+  const nuevoSaldo  = Math.max(0, prestamo.saldo - monto);
   const nuevoEstado = nuevoSaldo <= 0 ? 'Pagado' : 'Activo';
 
-  await update(ref(db, 'prestamos/' + prestamo._key), {
-    saldo: nuevoSaldo <= 0 ? 0 : nuevoSaldo,
-    estado: nuevoEstado
-  });
+  await update(ref(db, 'prestamos/' + prestamo._key), { saldo: nuevoSaldo, estado: nuevoEstado });
 
   await push(ref(db, 'abonos'), {
-    id: Date.now(),
-    prestamoId,
+    id: Date.now(), prestamoId,
     clienteNombre: prestamo.clienteNombre,
-    monto,
-    saldoRestante: nuevoSaldo <= 0 ? 0 : nuevoSaldo,
+    monto, saldoRestante: nuevoSaldo,
     fecha: new Date().toLocaleDateString('es-CO')
   });
 
@@ -306,8 +368,7 @@ window.renderAbonos = function(){
   filtrados.forEach((a, i) => {
     const tr = document.createElement('tr');
     [i+1, a.fecha, a.clienteNombre, moneda(a.monto), moneda(a.saldoRestante)].forEach(val => {
-      const td = document.createElement('td');
-      td.textContent = val; tr.appendChild(td);
+      const td = document.createElement('td'); td.textContent = val; tr.appendChild(td);
     });
     tbody.appendChild(tr);
   });
@@ -334,9 +395,9 @@ function renderResumen(){
   prestamos.forEach(p => {
     const abonado = p.total - p.saldo;
     const tr      = document.createElement('tr');
+
     [p.clienteNombre, moneda(p.capital), moneda(p.total), moneda(abonado), moneda(p.saldo)].forEach(val => {
-      const td = document.createElement('td');
-      td.textContent = val; tr.appendChild(td);
+      const td = document.createElement('td'); td.textContent = val; tr.appendChild(td);
     });
 
     // Estado
@@ -345,24 +406,131 @@ function renderResumen(){
     tdE.className   = p.estado === 'Pagado' ? 'estado-pagado' : 'estado-activo';
     tr.appendChild(tdE);
 
-    // Botón Renovar (solo si está Activo y tiene saldo)
+    // Acciones
     const tdAcc = document.createElement('td');
+    tdAcc.style.display = 'flex';
+    tdAcc.style.gap = '6px';
+
     if(p.estado === 'Activo' && p.saldo > 0){
-      const btn = document.createElement('button');
-      btn.textContent = '🔄 Renovar';
-      btn.style.background = 'transparent';
-      btn.style.border = '1px solid #1f3a2e';
-      btn.style.color = '#1f3a2e';
-      btn.style.padding = '8px 12px';
-      btn.style.borderRadius = '8px';
-      btn.style.cursor = 'pointer';
-      btn.style.fontSize = '.8rem';
-      btn.onclick = () => abrirModalRenovar(p);
-      tdAcc.appendChild(btn);
+      // Botón Renovar
+      const btnRenovar = document.createElement('button');
+      btnRenovar.textContent = '🔄 Renovar';
+      btnRenovar.style.cssText = 'background:transparent;border:1px solid #1f3a2e;color:#1f3a2e;padding:7px 10px;border-radius:8px;cursor:pointer;font-size:.78rem;white-space:nowrap;';
+      btnRenovar.onclick = () => abrirModalRenovar(p);
+      tdAcc.appendChild(btnRenovar);
+
+      // Botón Marcar Pagado
+      const btnPagado = document.createElement('button');
+      btnPagado.textContent = '✅ Pagado';
+      btnPagado.style.cssText = 'background:transparent;border:1px solid #27ae60;color:#27ae60;padding:7px 10px;border-radius:8px;cursor:pointer;font-size:.78rem;white-space:nowrap;';
+      btnPagado.onclick = () => marcarComoPagado(p);
+      tdAcc.appendChild(btnPagado);
     }
+
     tr.appendChild(tdAcc);
     tbody.appendChild(tr);
   });
+}
+
+// =========================
+// MARCAR COMO PAGADO
+// =========================
+
+window.marcarComoPagado = async function(prestamo){
+  if(!confirm(`¿Marcar el préstamo de ${prestamo.clienteNombre} como pagado?`)) return;
+  await update(ref(db, 'prestamos/' + prestamo._key), { saldo: 0, estado: 'Pagado' });
+  toast('Préstamo marcado como pagado ✓');
+}
+
+// =========================
+// RENOVAR PRÉSTAMO
+// =========================
+
+window.abrirModalRenovar = function(prestamo){
+  let modal = document.getElementById('modal-renovar');
+  if(modal) modal.remove();
+
+  modal = document.createElement('div');
+  modal.id = 'modal-renovar';
+  modal.className = 'modal-login';
+  modal.style.display = 'flex';
+
+  modal.innerHTML = `
+    <div class="login-box" style="max-width:420px">
+      <h2>🔄 Renovar Préstamo</h2>
+      <p style="color:#777;font-size:.85rem;margin-bottom:16px;">
+        Cliente: <strong>${prestamo.clienteNombre}</strong><br>
+        Saldo actual (nuevo capital): <strong style="color:#1f3a2e">${moneda(prestamo.saldo)}</strong>
+      </p>
+      <label>Nueva tasa de interés (%)</label>
+      <input type="number" id="ren-interes" value="${prestamo.interes}" inputmode="decimal"
+        style="margin-bottom:12px" oninput="previsualizarRenovacion(${prestamo.saldo})"/>
+      <label>Número de cuotas (meses)</label>
+      <input type="number" id="ren-cuotas" value="${prestamo.cuotas}" inputmode="numeric"
+        style="margin-bottom:16px" oninput="previsualizarRenovacion(${prestamo.saldo})"/>
+      <div id="ren-preview" style="background:#edf3ef;border-radius:10px;padding:14px;margin-bottom:16px;font-size:.9rem;display:none">
+        <p style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #ddd">
+          <span>Nuevo capital</span><strong id="ren-res-capital"></strong>
+        </p>
+        <p style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #ddd">
+          <span>Interés total</span><strong id="ren-res-interes"></strong>
+        </p>
+        <p style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #ddd">
+          <span>Nueva deuda total</span><strong id="ren-res-total" style="color:#1f3a2e"></strong>
+        </p>
+        <p style="display:flex;justify-content:space-between;padding:6px 0">
+          <span>Nueva cuota mensual</span><strong id="ren-res-cuota" style="color:#1f3a2e"></strong>
+        </p>
+      </div>
+      <div class="login-buttons">
+        <button onclick="confirmarRenovacion('${prestamo._key}', ${prestamo.saldo})">Confirmar</button>
+        <button onclick="cerrarModalRenovar()" class="btn-cancelar">Cancelar</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  previsualizarRenovacion(prestamo.saldo);
+}
+
+window.previsualizarRenovacion = function(saldoActual){
+  const interes = parseFloat(document.getElementById('ren-interes').value);
+  const cuotas  = parseInt(document.getElementById('ren-cuotas').value);
+  if(!interes || !cuotas || interes<=0 || cuotas<=0){
+    document.getElementById('ren-preview').style.display = 'none'; return;
+  }
+  const interesTotal = saldoActual * (interes/100) * cuotas;
+  const nuevoTotal   = saldoActual + interesTotal;
+  document.getElementById('ren-preview').style.display = 'block';
+  document.getElementById('ren-res-capital').textContent = moneda(saldoActual);
+  document.getElementById('ren-res-interes').textContent = moneda(interesTotal);
+  document.getElementById('ren-res-total').textContent   = moneda(nuevoTotal);
+  document.getElementById('ren-res-cuota').textContent   = moneda(nuevoTotal / cuotas);
+}
+
+window.confirmarRenovacion = async function(key, saldoActual){
+  const interes = parseFloat(document.getElementById('ren-interes').value);
+  const cuotas  = parseInt(document.getElementById('ren-cuotas').value);
+  if(!interes || !cuotas || interes<=0 || cuotas<=0){
+    toast('Completa todos los campos', false); return;
+  }
+  const interesTotal = saldoActual * (interes/100) * cuotas;
+  const nuevoTotal   = saldoActual + interesTotal;
+
+  await update(ref(db, 'prestamos/' + key), {
+    capital: saldoActual, interes, cuotas,
+    total: nuevoTotal, saldo: nuevoTotal,
+    estado: 'Activo', renovado: true,
+    fecha: new Date().toLocaleDateString('es-CO')
+  });
+
+  cerrarModalRenovar();
+  toast('Préstamo renovado correctamente ✓');
+}
+
+window.cerrarModalRenovar = function(){
+  const modal = document.getElementById('modal-renovar');
+  if(modal) modal.remove();
 }
 
 // =========================
@@ -384,6 +552,61 @@ function renderDashboard(){
   if(dd) dd.textContent = moneda(totalPendiente);
   if(dr) dr.textContent = moneda(totalRecuperado);
   if(dc) dc.textContent = clientes.length;
+}
+
+// =========================
+// EXPORTAR PDF RESUMEN
+// =========================
+
+window.exportarPDF = function(){
+  if(prestamos.length === 0){ toast('No hay préstamos para exportar', false); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const fecha = new Date().toLocaleDateString('es-CO', { year:'numeric', month:'long', day:'numeric' });
+
+  doc.setFillColor(31,58,46);
+  doc.rect(0,0,210,28,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(18); doc.setFont('helvetica','bold');
+  doc.text('PréstamosFácil', 14, 13);
+  doc.setFontSize(10); doc.setFont('helvetica','normal');
+  doc.text('Resumen de Préstamos', 14, 22);
+  doc.text('Fecha: ' + fecha, 150, 22);
+
+  let totalPrestado=0, totalPendiente=0, totalRecuperado=0;
+  prestamos.forEach(p => {
+    totalPrestado   += p.total;
+    totalPendiente  += p.saldo;
+    totalRecuperado += (p.total - p.saldo);
+  });
+
+  doc.setTextColor(0,0,0); doc.setFontSize(10); doc.setFont('helvetica','bold');
+  doc.text('Total prestado: '   + moneda(totalPrestado),   14, 38);
+  doc.text('Recuperado: '       + moneda(totalRecuperado), 80, 38);
+  doc.text('Saldo pendiente: '  + moneda(totalPendiente),  150, 38);
+
+  doc.autoTable({
+    startY: 44,
+    head: [['Cliente','Capital','Total deuda','Abonado','Saldo pendiente','Estado']],
+    body: prestamos.map(p => [
+      p.clienteNombre, moneda(p.capital), moneda(p.total),
+      moneda(p.total - p.saldo), moneda(p.saldo), p.estado
+    ]),
+    headStyles: { fillColor:[31,58,46], textColor:255, fontStyle:'bold', fontSize:9 },
+    bodyStyles: { fontSize:9 },
+    alternateRowStyles: { fillColor:[237,243,239] }
+  });
+
+  const totalPags = doc.internal.getNumberOfPages();
+  for(let i=1; i<=totalPags; i++){
+    doc.setPage(i);
+    doc.setFontSize(8); doc.setTextColor(150);
+    doc.text('Página ' + i + ' de ' + totalPags + '  |  PréstamosFácil', 105, 290, { align:'center' });
+  }
+
+  doc.save('resumen-prestamos-' + new Date().toISOString().slice(0,10) + '.pdf');
+  toast('PDF exportado ✓');
 }
 
 // =========================
@@ -433,333 +656,3 @@ document.addEventListener('DOMContentLoaded', () => {
     if(e.key === 'Enter') document.getElementById('login-pass').focus();
   });
 });
-
-// =========================
-// EXPORTAR PDF
-// =========================
-
-window.exportarPDF = function(){
-  if(prestamos.length === 0){
-    toast('No hay préstamos para exportar', false);
-    return;
-  }
-
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-
-  // Encabezado
-  doc.setFillColor(31, 58, 46);
-  doc.rect(0, 0, 210, 28, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
-  doc.text('PréstamosFácil', 14, 13);
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Resumen de Préstamos', 14, 22);
-
-  // Fecha
-  const fecha = new Date().toLocaleDateString('es-CO', {
-    year: 'numeric', month: 'long', day: 'numeric'
-  });
-  doc.text('Fecha: ' + fecha, 150, 22);
-
-  // Totales
-  doc.setTextColor(0, 0, 0);
-  doc.setFontSize(10);
-  let totalPrestado = 0, totalPendiente = 0, totalRecuperado = 0;
-  prestamos.forEach(p => {
-    totalPrestado   += p.total;
-    totalPendiente  += p.saldo;
-    totalRecuperado += (p.total - p.saldo);
-  });
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('Total prestado: '    + moneda(totalPrestado),   14, 38);
-  doc.text('Total recuperado: '  + moneda(totalRecuperado), 80, 38);
-  doc.text('Saldo pendiente: '   + moneda(totalPendiente),  150, 38);
-
-  // Tabla
-  const filas = prestamos.map(p => [
-    p.clienteNombre,
-    moneda(p.capital),
-    moneda(p.total),
-    moneda(p.total - p.saldo),
-    moneda(p.saldo),
-    p.estado
-  ]);
-
-  doc.autoTable({
-    startY: 44,
-    head: [['Cliente', 'Capital', 'Total deuda', 'Abonado', 'Saldo pendiente', 'Estado']],
-    body: filas,
-    headStyles: {
-      fillColor: [31, 58, 46],
-      textColor: 255,
-      fontStyle: 'bold',
-      fontSize: 9
-    },
-    bodyStyles: { fontSize: 9 },
-    alternateRowStyles: { fillColor: [237, 243, 239] },
-    columnStyles: {
-      5: {
-        fontStyle: 'bold',
-        textColor: (cell) => cell.raw === 'Pagado' ? [39, 174, 96] : [214, 137, 16]
-      }
-    },
-    didDrawCell: (data) => {
-      if(data.section === 'body' && data.column.index === 5){
-        const val = data.cell.raw;
-        if(val === 'Pagado'){
-          data.doc.setTextColor(39, 174, 96);
-        } else {
-          data.doc.setTextColor(214, 137, 16);
-        }
-        data.doc.setFont('helvetica', 'bold');
-        data.doc.text(val, data.cell.x + 2, data.cell.y + data.cell.height / 2 + 1);
-        data.doc.setTextColor(0, 0, 0);
-        data.doc.setFont('helvetica', 'normal');
-      }
-    }
-  });
-
-  // Pie de página
-  const totalPaginas = doc.internal.getNumberOfPages();
-  for(let i = 1; i <= totalPaginas; i++){
-    doc.setPage(i);
-    doc.setFontSize(8);
-    doc.setTextColor(150);
-    doc.text(
-      'Página ' + i + ' de ' + totalPaginas + '  |  PréstamosFácil',
-      105, 290, { align: 'center' }
-    );
-  }
-
-  doc.save('prestamos-' + new Date().toISOString().slice(0,10) + '.pdf');
-  toast('PDF exportado correctamente ✓');
-}
-
-// =========================
-// RENOVAR PRÉSTAMO
-// =========================
-
-window.abrirModalRenovar = function(prestamo){
-  // Crear modal dinámico
-  let modal = document.getElementById('modal-renovar');
-  if(modal) modal.remove();
-
-  modal = document.createElement('div');
-  modal.id = 'modal-renovar';
-  modal.className = 'modal-login';
-  modal.style.display = 'flex';
-
-  modal.innerHTML = `
-    <div class="login-box" style="max-width:420px">
-      <h2>🔄 Renovar Préstamo</h2>
-      <p style="color:#777; font-size:.85rem; margin-bottom:16px;">
-        Cliente: <strong>${prestamo.clienteNombre}</strong><br>
-        Saldo actual: <strong style="color:#1f3a2e">${moneda(prestamo.saldo)}</strong>
-      </p>
-
-      <label for="ren-interes">Nueva tasa de interés (%)</label>
-      <input type="number" id="ren-interes" value="${prestamo.interes}" inputmode="decimal"
-        style="margin-bottom:12px" oninput="previsualizarRenovacion('${prestamo._key}', ${prestamo.saldo})"/>
-
-      <label for="ren-cuotas">Número de cuotas (meses)</label>
-      <input type="number" id="ren-cuotas" value="${prestamo.cuotas}" inputmode="numeric"
-        style="margin-bottom:16px" oninput="previsualizarRenovacion('${prestamo._key}', ${prestamo.saldo})"/>
-
-      <div id="ren-preview" style="background:#edf3ef; border-radius:10px; padding:14px; margin-bottom:16px; font-size:.9rem; display:none">
-        <p style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #ddd">
-          <span>Nuevo capital (saldo actual)</span>
-          <strong id="ren-res-capital"></strong>
-        </p>
-        <p style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #ddd">
-          <span>Interés total</span>
-          <strong id="ren-res-interes"></strong>
-        </p>
-        <p style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #ddd">
-          <span>Nueva deuda total</span>
-          <strong id="ren-res-total" style="color:#1f3a2e"></strong>
-        </p>
-        <p style="display:flex; justify-content:space-between; padding:6px 0">
-          <span>Nueva cuota mensual</span>
-          <strong id="ren-res-cuota" style="color:#1f3a2e"></strong>
-        </p>
-      </div>
-
-      <div class="login-buttons">
-        <button onclick="confirmarRenovacion('${prestamo._key}', ${prestamo.saldo})">Confirmar Renovación</button>
-        <button onclick="cerrarModalRenovar()" class="btn-cancelar">Cancelar</button>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(modal);
-
-  // Previsualizar al abrir
-  previsualizarRenovacion(prestamo._key, prestamo.saldo);
-}
-
-window.previsualizarRenovacion = function(key, saldoActual){
-  const interes = parseFloat(document.getElementById('ren-interes').value);
-  const cuotas  = parseInt(document.getElementById('ren-cuotas').value);
-
-  if(!interes || !cuotas || interes <= 0 || cuotas <= 0){
-    document.getElementById('ren-preview').style.display = 'none';
-    return;
-  }
-
-  const interesMensual = saldoActual * (interes / 100);
-  const interesTotal   = interesMensual * cuotas;
-  const nuevoTotal     = saldoActual + interesTotal;
-  const nuevaCuota     = nuevoTotal / cuotas;
-
-  document.getElementById('ren-preview').style.display = 'block';
-  document.getElementById('ren-res-capital').textContent = moneda(saldoActual);
-  document.getElementById('ren-res-interes').textContent = moneda(interesTotal);
-  document.getElementById('ren-res-total').textContent   = moneda(nuevoTotal);
-  document.getElementById('ren-res-cuota').textContent   = moneda(nuevaCuota);
-}
-
-window.confirmarRenovacion = async function(key, saldoActual){
-  const interes = parseFloat(document.getElementById('ren-interes').value);
-  const cuotas  = parseInt(document.getElementById('ren-cuotas').value);
-
-  if(!interes || !cuotas || interes <= 0 || cuotas <= 0){
-    toast('Completa todos los campos', false); return;
-  }
-
-  const interesMensual = saldoActual * (interes / 100);
-  const interesTotal   = interesMensual * cuotas;
-  const nuevoTotal     = saldoActual + interesTotal;
-
-  await update(ref(db, 'prestamos/' + key), {
-    capital: saldoActual,
-    interes,
-    cuotas,
-    total: nuevoTotal,
-    saldo: nuevoTotal,
-    estado: 'Activo',
-    fecha: new Date().toLocaleDateString('es-CO'),
-    renovado: true
-  });
-
-  cerrarModalRenovar();
-  toast('Préstamo renovado correctamente ✓');
-}
-
-window.cerrarModalRenovar = function(){
-  const modal = document.getElementById('modal-renovar');
-  if(modal) modal.remove();
-}
-
-// =========================
-// DESCARGAR PDF DE UN PRÉSTAMO
-// =========================
-
-window.descargarPDFPrestamo = function(){
-  const clienteId = parseInt(document.getElementById('pres-cliente').value);
-  const capital   = parseFloat(document.getElementById('pres-capital').value);
-  const interes   = parseFloat(document.getElementById('pres-interes').value);
-  const cuotas    = parseInt(document.getElementById('pres-cuotas').value);
-
-  if(!clienteId || !capital || !interes || !cuotas){
-    toast('Primero completa los datos del préstamo', false); return;
-  }
-
-  const cliente = clientes.find(c => c.id === clienteId);
-  if(!cliente){ toast('Cliente no encontrado', false); return; }
-
-  const interesMensual = capital * (interes / 100);
-  const interesTotal   = interesMensual * cuotas;
-  const total          = capital + interesTotal;
-  const cuotaMensual   = total / cuotas;
-  const fecha          = new Date().toLocaleDateString('es-CO', {
-    year:'numeric', month:'long', day:'numeric'
-  });
-
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-
-  // --- Encabezado ---
-  doc.setFillColor(31, 58, 46);
-  doc.rect(0, 0, 210, 32, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(20);
-  doc.setFont('helvetica', 'bold');
-  doc.text('PréstamosFácil', 14, 14);
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Comprobante de Préstamo', 14, 24);
-  doc.text('Fecha: ' + fecha, 150, 24);
-
-  // --- Datos del cliente ---
-  doc.setTextColor(0, 0, 0);
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.setFillColor(237, 243, 239);
-  doc.rect(14, 38, 182, 8, 'F');
-  doc.text('DATOS DEL CLIENTE', 16, 44);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.text('Nombre:',    16, 56); doc.setFont('helvetica','bold'); doc.text(cliente.nombre,    50, 56);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Cédula:',    16, 64); doc.setFont('helvetica','bold'); doc.text(cliente.cedula,    50, 64);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Dirección:', 16, 72); doc.setFont('helvetica','bold'); doc.text(cliente.direccion, 50, 72);
-
-  // --- Datos del préstamo ---
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.setFillColor(237, 243, 239);
-  doc.rect(14, 82, 182, 8, 'F');
-  doc.text('DETALLE DEL PRÉSTAMO', 16, 88);
-
-  doc.autoTable({
-    startY: 94,
-    head: [['Concepto', 'Valor']],
-    body: [
-      ['Capital prestado',          moneda(capital)],
-      ['Tasa de interés mensual',   interes + '%'],
-      ['Interés mensual',           moneda(interesMensual)],
-      ['Número de cuotas',          cuotas + ' meses'],
-      ['Interés total acumulado',   moneda(interesTotal)],
-      ['Total deuda',               moneda(total)],
-      ['Cuota mensual a pagar',     moneda(cuotaMensual)],
-    ],
-    headStyles: { fillColor: [31, 58, 46], textColor: 255, fontStyle: 'bold' },
-    bodyStyles: { fontSize: 10 },
-    alternateRowStyles: { fillColor: [245, 245, 243] },
-    columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 100 },
-      1: { halign: 'right' }
-    },
-    didDrawRow: (data) => {
-      // Resaltar fila de total y cuota
-      if(data.row.index === 5 || data.row.index === 6){
-        data.doc.setFillColor(31, 58, 46);
-      }
-    }
-  });
-
-  const finalY = doc.lastAutoTable.finalY + 10;
-
-  // --- Firma ---
-  doc.setDrawColor(31, 58, 46);
-  doc.line(14, finalY + 20, 90, finalY + 20);
-  doc.line(120, finalY + 20, 196, finalY + 20);
-  doc.setFontSize(9);
-  doc.setTextColor(100);
-  doc.text('Firma del cliente', 30, finalY + 26);
-  doc.text('Firma del prestamista', 138, finalY + 26);
-
-  // --- Pie ---
-  doc.setFontSize(8);
-  doc.setTextColor(150);
-  doc.text('PréstamosFácil  |  Documento generado el ' + fecha, 105, 285, { align: 'center' });
-
-  doc.save('prestamo-' + cliente.nombre.replace(/ /g,'_') + '-' + new Date().toISOString().slice(0,10) + '.pdf');
-  toast('PDF descargado correctamente ✓');
-}

@@ -73,7 +73,7 @@
     <p>Interés total acumulado: <strong id="res-interes"></strong></p>
     <p>Total deuda (capital + intereses): <strong id="res-total"></strong></p>
     <p>Cuota mensual: <strong id="res-cuota"></strong></p>
-  <button onclick="descargarPDFPrestamo()" style="margin-top:14px; background:#c0392b; width:100%;">
+    <button onclick="descargarPDFPrestamo()" style="margin-top:10px; background:#c0392b; width:100%;">
       📄 Descargar PDF del préstamo
     </button>
   </div>
@@ -100,21 +100,22 @@
 <!-- RESUMEN -->
 <section id="sec-resumen" style="display:none">
   <h2>Resumen de Préstamos</h2>
-
   <div class="cards-dashboard">
     <div class="card"><h3>Total Prestado</h3><p id="dash-prestado">$0</p></div>
     <div class="card"><h3>Total Recuperado</h3><p id="dash-recuperado">$0</p></div>
     <div class="card"><h3>Saldo Pendiente</h3><p id="dash-pendiente">$0</p></div>
     <div class="card"><h3>Clientes</h3><p id="dash-clientes">0</p></div>
   </div>
-
-  <!-- BOTÓN EXPORTAR PDF -->
   <button onclick="exportarPDF()" style="margin-bottom:20px; background:#c0392b;">
     📄 Exportar PDF
   </button>
-
   <table id="tabla-resumen">
-    <thead><tr><th>Cliente</th><th>Capital</th><th>Total deuda</th><th>Abonado</th><th>Saldo pendiente</th><th>Estado</th><th>Acción</th></tr></thead>
+    <thead>
+      <tr>
+        <th>Cliente</th><th>Capital</th><th>Total deuda</th>
+        <th>Abonado</th><th>Saldo pendiente</th><th>Estado</th><th>Acciones</th>
+      </tr>
+    </thead>
     <tbody id="body-resumen"></tbody>
   </table>
 </section>
@@ -144,7 +145,7 @@
   <button onclick="abrirLogin()"              data-sec="resumen"><span>📊</span><span>Resumen</span></button>
 </nav>
 
-<!-- jsPDF para exportar PDF en el navegador -->
+<!-- jsPDF -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
