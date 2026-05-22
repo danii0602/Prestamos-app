@@ -71,6 +71,44 @@ function moneda(valor){
 }
 
 // =========================
+// CALCULAR PRÓXIMA FECHA DE VENCIMIENTO
+// =========================
+
+function proximaFechaVencimiento(diaPago){
+  if(!diaPago) return null;
+  const hoy    = new Date();
+  let   anio   = hoy.getFullYear();
+  let   mes    = hoy.getMonth(); // 0-based
+
+  // Si hoy ya pasó el día de pago de este mes, la próxima es el siguiente mes
+  const vencimientoEsteMes = new Date(anio, mes, diaPago);
+  if(hoy > vencimientoEsteMes){
+    mes++;
+    if(mes > 11){ mes = 0; anio++; }
+  }
+
+  return new Date(anio, mes, diaPago);
+}
+
+function estadoCuota(diaPago){
+  if(!diaPago) return { texto: '—', vencida: false };
+  const hoy      = new Date();
+  const proxima  = proximaFechaVencimiento(diaPago);
+  const diffDias = Math.ceil((proxima - hoy) / (1000*60*60*24));
+  const fechaStr = proxima.toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric' });
+
+  if(diffDias < 0){
+    return { texto: `⚠️ Vencida (${fechaStr})`, vencida: true, proxima };
+  } else if(diffDias === 0){
+    return { texto: `🔴 Vence HOY`, vencida: true, proxima };
+  } else if(diffDias <= 3){
+    return { texto: `🟡 Vence en ${diffDias} días (${fechaStr})`, vencida: false, proxima, alerta: true };
+  } else {
+    return { texto: `🟢 Vence el ${fechaStr}`, vencida: false, proxima };
+  }
+}
+
+// =========================
 // MOSTRAR SECCIONES
 // =========================
 
@@ -190,8 +228,10 @@ window.registrarPrestamo = async function(){
   const capital   = parseFloat(document.getElementById('pres-capital').value);
   const interes   = parseFloat(document.getElementById('pres-interes').value);
   const cuotas    = parseInt(document.getElementById('pres-cuotas').value);
+  const diaPago   = parseInt(document.getElementById('pres-dia-pago').value);
 
   if(!clienteId || !capital || !interes || !cuotas){ toast('Completa todos los campos', false); return; }
+  if(!diaPago || diaPago < 1 || diaPago > 28){ toast('El día de pago debe estar entre 1 y 28', false); return; }
   if(capital<=0){ toast('Capital inválido', false); return; }
   if(interes<=0){ toast('Interés inválido', false); return; }
   if(cuotas<=0){  toast('Número de cuotas inválido', false); return; }
@@ -206,12 +246,14 @@ window.registrarPrestamo = async function(){
   await push(ref(db, 'prestamos'), {
     id: Date.now(), clienteId, clienteNombre: cliente.nombre,
     capital, interes, cuotas, total, saldo: total,
-    estado: 'Activo', fecha: new Date().toLocaleDateString('es-CO')
+    diaPago, estado: 'Activo',
+    fecha: new Date().toLocaleDateString('es-CO')
   });
 
-  document.getElementById('pres-capital').value = '';
-  document.getElementById('pres-interes').value = '';
-  document.getElementById('pres-cuotas').value  = '';
+  document.getElementById('pres-capital').value  = '';
+  document.getElementById('pres-interes').value  = '';
+  document.getElementById('pres-cuotas').value   = '';
+  document.getElementById('pres-dia-pago').value = '';
   document.getElementById('proyeccion').style.display = 'none';
   toast('Préstamo registrado ✓');
 }
@@ -225,6 +267,7 @@ window.descargarPDFPrestamo = function(){
   const capital   = parseFloat(document.getElementById('pres-capital').value);
   const interes   = parseFloat(document.getElementById('pres-interes').value);
   const cuotas    = parseInt(document.getElementById('pres-cuotas').value);
+  const diaPago   = parseInt(document.getElementById('pres-dia-pago').value);
 
   if(!clienteId || !capital || !interes || !cuotas){
     toast('Completa los datos del préstamo primero', false); return;
@@ -242,50 +285,50 @@ window.descargarPDFPrestamo = function(){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
 
-  // Encabezado
-  doc.setFillColor(31, 58, 46);
-  doc.rect(0, 0, 210, 32, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(20); doc.setFont('helvetica', 'bold');
+  doc.setFillColor(31,58,46);
+  doc.rect(0,0,210,32,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(20); doc.setFont('helvetica','bold');
   doc.text('PréstamosFácil', 14, 14);
-  doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10); doc.setFont('helvetica','normal');
   doc.text('Comprobante de Préstamo', 14, 24);
   doc.text('Fecha: ' + fecha, 150, 24);
 
-  // Datos del cliente
   doc.setTextColor(0,0,0);
-  doc.setFillColor(237, 243, 239);
-  doc.rect(14, 38, 182, 8, 'F');
-  doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+  doc.setFillColor(237,243,239);
+  doc.rect(14,38,182,8,'F');
+  doc.setFontSize(11); doc.setFont('helvetica','bold');
   doc.text('DATOS DEL CLIENTE', 16, 44);
-  doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10); doc.setFont('helvetica','normal');
   doc.text('Nombre:',    16, 56); doc.setFont('helvetica','bold'); doc.text(cliente.nombre,    55, 56);
   doc.setFont('helvetica','normal');
   doc.text('Cédula:',    16, 64); doc.setFont('helvetica','bold'); doc.text(cliente.cedula,    55, 64);
   doc.setFont('helvetica','normal');
   doc.text('Dirección:', 16, 72); doc.setFont('helvetica','bold'); doc.text(cliente.direccion, 55, 72);
 
-  // Datos del préstamo
-  doc.setFillColor(237, 243, 239);
-  doc.rect(14, 80, 182, 8, 'F');
-  doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+  doc.setFillColor(237,243,239);
+  doc.rect(14,80,182,8,'F');
+  doc.setFontSize(11); doc.setFont('helvetica','bold');
   doc.text('DETALLE DEL PRÉSTAMO', 16, 86);
+
+  const filasDetalle = [
+    ['Capital prestado',        moneda(capital)],
+    ['Tasa de interés mensual', interes + '%'],
+    ['Interés mensual',         moneda(interesMensual)],
+    ['Número de cuotas',        cuotas + ' meses'],
+    ['Interés total acumulado', moneda(interesTotal)],
+    ['Total deuda',             moneda(total)],
+    ['Cuota mensual a pagar',   moneda(cuotaMensual)],
+  ];
+  if(diaPago) filasDetalle.push(['Día de pago mensual', 'Día ' + diaPago + ' de cada mes']);
 
   doc.autoTable({
     startY: 92,
     head: [['Concepto', 'Valor']],
-    body: [
-      ['Capital prestado',         moneda(capital)],
-      ['Tasa de interés mensual',  interes + '%'],
-      ['Interés mensual',          moneda(interesMensual)],
-      ['Número de cuotas',         cuotas + ' meses'],
-      ['Interés total acumulado',  moneda(interesTotal)],
-      ['Total deuda',              moneda(total)],
-      ['Cuota mensual a pagar',    moneda(cuotaMensual)],
-    ],
-    headStyles: { fillColor: [31,58,46], textColor: 255, fontStyle: 'bold' },
-    bodyStyles: { fontSize: 10 },
-    alternateRowStyles: { fillColor: [245,245,243] },
+    body: filasDetalle,
+    headStyles: { fillColor:[31,58,46], textColor:255, fontStyle:'bold' },
+    bodyStyles: { fontSize:10 },
+    alternateRowStyles: { fillColor:[245,245,243] },
     columnStyles: { 0: { fontStyle:'bold', cellWidth:100 }, 1: { halign:'right' } }
   });
 
@@ -296,7 +339,6 @@ window.descargarPDFPrestamo = function(){
   doc.setFontSize(9); doc.setTextColor(100);
   doc.text('Firma del cliente', 30, finalY+26);
   doc.text('Firma del prestamista', 138, finalY+26);
-
   doc.setFontSize(8); doc.setTextColor(150);
   doc.text('PréstamosFácil  |  Generado el ' + fecha, 105, 285, { align:'center' });
 
@@ -313,9 +355,11 @@ function llenarSelectPrestamos(){
   if(!sel) return;
   sel.innerHTML = '<option value="">-- Seleccionar préstamo --</option>';
   prestamos.filter(p => p.estado === 'Activo').forEach(p => {
-    const opt = document.createElement('option');
-    opt.value = p.id;
+    const cuota = estadoCuota(p.diaPago);
+    const opt   = document.createElement('option');
+    opt.value   = p.id;
     opt.textContent = p.clienteNombre + ' — Saldo: ' + moneda(p.saldo);
+    if(cuota.vencida) opt.textContent += ' ⚠️';
     sel.appendChild(opt);
   });
 }
@@ -337,7 +381,6 @@ window.registrarAbono = async function(){
   const nuevoEstado = nuevoSaldo <= 0 ? 'Pagado' : 'Activo';
 
   await update(ref(db, 'prestamos/' + prestamo._key), { saldo: nuevoSaldo, estado: nuevoEstado });
-
   await push(ref(db, 'abonos'), {
     id: Date.now(), prestamoId,
     clienteNombre: prestamo.clienteNombre,
@@ -350,11 +393,41 @@ window.registrarAbono = async function(){
 }
 
 window.renderAbonos = function(){
+  // Mostrar alerta de cuotas vencidas en abonos
+  const alertaEl = document.getElementById('alerta-cuotas');
+  if(alertaEl){
+    const vencidas = prestamos.filter(p => p.estado === 'Activo' && p.diaPago && estadoCuota(p.diaPago).vencida);
+    if(vencidas.length > 0){
+      alertaEl.style.display = 'block';
+      alertaEl.innerHTML = `⚠️ <strong>${vencidas.length} préstamo(s) con cuota vencida:</strong> ` +
+        vencidas.map(p => p.clienteNombre).join(', ');
+    } else {
+      alertaEl.style.display = 'none';
+    }
+  }
+
   const prestamoId = parseInt(document.getElementById('abo-prestamo').value);
   const filtrados  = prestamoId ? abonos.filter(a => a.prestamoId === prestamoId) : abonos;
   const tbody      = document.getElementById('body-abonos');
   if(!tbody) return;
   tbody.innerHTML  = '';
+
+  // Mostrar info de cuota del préstamo seleccionado
+  const infoEl = document.getElementById('info-cuota-prestamo');
+  if(infoEl && prestamoId){
+    const pres = prestamos.find(p => p.id === prestamoId);
+    if(pres && pres.diaPago){
+      const cuota = estadoCuota(pres.diaPago);
+      infoEl.style.display = 'block';
+      infoEl.style.background = cuota.vencida ? '#fdecea' : cuota.alerta ? '#fef9e7' : '#edf3ef';
+      infoEl.style.borderLeft = `4px solid ${cuota.vencida ? '#e74c3c' : cuota.alerta ? '#f39c12' : '#27ae60'}`;
+      infoEl.textContent = '📅 Próxima cuota: ' + cuota.texto + ' — Valor: ' + moneda(pres.total / pres.cuotas);
+    } else {
+      infoEl.style.display = 'none';
+    }
+  } else if(infoEl){
+    infoEl.style.display = 'none';
+  }
 
   if(filtrados.length === 0){
     const tr = document.createElement('tr');
@@ -386,7 +459,7 @@ function renderResumen(){
   if(prestamos.length === 0){
     const tr = document.createElement('tr');
     const td = document.createElement('td');
-    td.colSpan = 7; td.style.textAlign = 'center';
+    td.colSpan = 8; td.style.textAlign = 'center';
     td.style.color = '#999'; td.style.padding = '20px';
     td.textContent = 'No hay préstamos registrados';
     tr.appendChild(td); tbody.appendChild(tr); return;
@@ -394,7 +467,12 @@ function renderResumen(){
 
   prestamos.forEach(p => {
     const abonado = p.total - p.saldo;
+    const cuota   = p.estado === 'Activo' ? estadoCuota(p.diaPago) : null;
     const tr      = document.createElement('tr');
+
+    // Resaltar fila si cuota vencida
+    if(cuota && cuota.vencida) tr.style.background = '#fdecea';
+    else if(cuota && cuota.alerta) tr.style.background = '#fef9e7';
 
     [p.clienteNombre, moneda(p.capital), moneda(p.total), moneda(abonado), moneda(p.saldo)].forEach(val => {
       const td = document.createElement('td'); td.textContent = val; tr.appendChild(td);
@@ -406,20 +484,33 @@ function renderResumen(){
     tdE.className   = p.estado === 'Pagado' ? 'estado-pagado' : 'estado-activo';
     tr.appendChild(tdE);
 
+    // Próxima cuota
+    const tdC = document.createElement('td');
+    if(p.estado === 'Activo' && p.diaPago){
+      tdC.textContent  = cuota.texto;
+      tdC.style.fontSize = '.8rem';
+      tdC.style.fontWeight = cuota.vencida ? '600' : 'normal';
+    } else if(p.estado === 'Pagado'){
+      tdC.textContent = '—';
+      tdC.style.color = '#999';
+    } else {
+      tdC.textContent = 'Sin día fijado';
+      tdC.style.color = '#999';
+    }
+    tr.appendChild(tdC);
+
     // Acciones
     const tdAcc = document.createElement('td');
     tdAcc.style.display = 'flex';
     tdAcc.style.gap = '6px';
 
     if(p.estado === 'Activo' && p.saldo > 0){
-      // Botón Renovar
       const btnRenovar = document.createElement('button');
       btnRenovar.textContent = '🔄 Renovar';
       btnRenovar.style.cssText = 'background:transparent;border:1px solid #1f3a2e;color:#1f3a2e;padding:7px 10px;border-radius:8px;cursor:pointer;font-size:.78rem;white-space:nowrap;';
       btnRenovar.onclick = () => abrirModalRenovar(p);
       tdAcc.appendChild(btnRenovar);
 
-      // Botón Marcar Pagado
       const btnPagado = document.createElement('button');
       btnPagado.textContent = '✅ Pagado';
       btnPagado.style.cssText = 'background:transparent;border:1px solid #27ae60;color:#27ae60;padding:7px 10px;border-radius:8px;cursor:pointer;font-size:.78rem;white-space:nowrap;';
@@ -467,7 +558,10 @@ window.abrirModalRenovar = function(prestamo){
         style="margin-bottom:12px" oninput="previsualizarRenovacion(${prestamo.saldo})"/>
       <label>Número de cuotas (meses)</label>
       <input type="number" id="ren-cuotas" value="${prestamo.cuotas}" inputmode="numeric"
-        style="margin-bottom:16px" oninput="previsualizarRenovacion(${prestamo.saldo})"/>
+        style="margin-bottom:12px" oninput="previsualizarRenovacion(${prestamo.saldo})"/>
+      <label>Día de pago mensual (1-28)</label>
+      <input type="number" id="ren-dia-pago" value="${prestamo.diaPago || ''}" min="1" max="28"
+        inputmode="numeric" style="margin-bottom:16px" placeholder="Ej: 15"/>
       <div id="ren-preview" style="background:#edf3ef;border-radius:10px;padding:14px;margin-bottom:16px;font-size:.9rem;display:none">
         <p style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #ddd">
           <span>Nuevo capital</span><strong id="ren-res-capital"></strong>
@@ -511,15 +605,22 @@ window.previsualizarRenovacion = function(saldoActual){
 window.confirmarRenovacion = async function(key, saldoActual){
   const interes = parseFloat(document.getElementById('ren-interes').value);
   const cuotas  = parseInt(document.getElementById('ren-cuotas').value);
+  const diaPago = parseInt(document.getElementById('ren-dia-pago').value);
+
   if(!interes || !cuotas || interes<=0 || cuotas<=0){
     toast('Completa todos los campos', false); return;
   }
+  if(diaPago && (diaPago < 1 || diaPago > 28)){
+    toast('El día de pago debe estar entre 1 y 28', false); return;
+  }
+
   const interesTotal = saldoActual * (interes/100) * cuotas;
   const nuevoTotal   = saldoActual + interesTotal;
 
   await update(ref(db, 'prestamos/' + key), {
     capital: saldoActual, interes, cuotas,
     total: nuevoTotal, saldo: nuevoTotal,
+    diaPago: diaPago || null,
     estado: 'Activo', renovado: true,
     fecha: new Date().toLocaleDateString('es-CO')
   });
@@ -538,20 +639,42 @@ window.cerrarModalRenovar = function(){
 // =========================
 
 function renderDashboard(){
-  let totalPrestado = 0, totalPendiente = 0, totalRecuperado = 0;
+  let capitalInicial  = 0;
+  let interesesGenera = 0;
+  let deudaTotal      = 0;
+  let enLaCalle       = 0;
+  let totalRecaudado  = 0;
+
   prestamos.forEach(p => {
-    totalPrestado   += p.total;
-    totalPendiente  += p.saldo;
-    totalRecuperado += (p.total - p.saldo);
+    capitalInicial  += p.capital;
+    interesesGenera += (p.total - p.capital);
+    deudaTotal      += p.total;
+    enLaCalle       += p.saldo;
+    totalRecaudado  += (p.total - p.saldo);
   });
-  const dp = document.getElementById('dash-prestado');
-  const dd = document.getElementById('dash-pendiente');
-  const dr = document.getElementById('dash-recuperado');
-  const dc = document.getElementById('dash-clientes');
-  if(dp) dp.textContent = moneda(totalPrestado);
-  if(dd) dd.textContent = moneda(totalPendiente);
-  if(dr) dr.textContent = moneda(totalRecuperado);
-  if(dc) dc.textContent = clientes.length;
+
+  const vencidas = prestamos.filter(p =>
+    p.estado==='Activo' && p.diaPago && estadoCuota(p.diaPago).vencida
+  ).length;
+
+  function set(id, val){
+    const el = document.getElementById(id);
+    if(el) el.textContent = typeof val === 'number' && val > 999 ? moneda(val) : val;
+  }
+
+  set('dash-capital-inicial', capitalInicial);
+  set('dash-intereses',       interesesGenera);
+  set('dash-deuda-total',     deudaTotal);
+  set('dash-en-calle',        enLaCalle);
+  set('dash-recaudado',       totalRecaudado);
+  set('dash-clientes',        clientes.length);
+
+  const dv = document.getElementById('dash-vencidas');
+  if(dv){
+    dv.textContent = vencidas;
+    dv.parentElement.style.borderLeft = vencidas > 0 ? '4px solid #e74c3c' : '';
+    dv.parentElement.style.background = vencidas > 0 ? '#fdecea' : '';
+  }
 }
 
 // =========================
@@ -562,17 +685,17 @@ window.exportarPDF = function(){
   if(prestamos.length === 0){ toast('No hay préstamos para exportar', false); return; }
 
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
+  const doc = new jsPDF('landscape');
   const fecha = new Date().toLocaleDateString('es-CO', { year:'numeric', month:'long', day:'numeric' });
 
   doc.setFillColor(31,58,46);
-  doc.rect(0,0,210,28,'F');
+  doc.rect(0,0,297,28,'F');
   doc.setTextColor(255,255,255);
   doc.setFontSize(18); doc.setFont('helvetica','bold');
   doc.text('PréstamosFácil', 14, 13);
   doc.setFontSize(10); doc.setFont('helvetica','normal');
   doc.text('Resumen de Préstamos', 14, 22);
-  doc.text('Fecha: ' + fecha, 150, 22);
+  doc.text('Fecha: ' + fecha, 230, 22);
 
   let totalPrestado=0, totalPendiente=0, totalRecuperado=0;
   prestamos.forEach(p => {
@@ -582,17 +705,17 @@ window.exportarPDF = function(){
   });
 
   doc.setTextColor(0,0,0); doc.setFontSize(10); doc.setFont('helvetica','bold');
-  doc.text('Total prestado: '   + moneda(totalPrestado),   14, 38);
-  doc.text('Recuperado: '       + moneda(totalRecuperado), 80, 38);
-  doc.text('Saldo pendiente: '  + moneda(totalPendiente),  150, 38);
+  doc.text('Total prestado: ' + moneda(totalPrestado), 14, 38);
+  doc.text('Recuperado: '     + moneda(totalRecuperado), 100, 38);
+  doc.text('Saldo pendiente: '+ moneda(totalPendiente), 200, 38);
 
   doc.autoTable({
     startY: 44,
-    head: [['Cliente','Capital','Total deuda','Abonado','Saldo pendiente','Estado']],
-    body: prestamos.map(p => [
-      p.clienteNombre, moneda(p.capital), moneda(p.total),
-      moneda(p.total - p.saldo), moneda(p.saldo), p.estado
-    ]),
+    head: [['Cliente','Capital','Total deuda','Abonado','Saldo pendiente','Estado','Próxima cuota']],
+    body: prestamos.map(p => {
+      const cuota = p.estado==='Activo' && p.diaPago ? estadoCuota(p.diaPago).texto.replace(/[🟢🟡🔴⚠️]/g,'').trim() : '—';
+      return [p.clienteNombre, moneda(p.capital), moneda(p.total), moneda(p.total-p.saldo), moneda(p.saldo), p.estado, cuota];
+    }),
     headStyles: { fillColor:[31,58,46], textColor:255, fontStyle:'bold', fontSize:9 },
     bodyStyles: { fontSize:9 },
     alternateRowStyles: { fillColor:[237,243,239] }
@@ -602,7 +725,7 @@ window.exportarPDF = function(){
   for(let i=1; i<=totalPags; i++){
     doc.setPage(i);
     doc.setFontSize(8); doc.setTextColor(150);
-    doc.text('Página ' + i + ' de ' + totalPags + '  |  PréstamosFácil', 105, 290, { align:'center' });
+    doc.text('Página ' + i + ' de ' + totalPags + '  |  PréstamosFácil', 148, 200, { align:'center' });
   }
 
   doc.save('resumen-prestamos-' + new Date().toISOString().slice(0,10) + '.pdf');
