@@ -16,6 +16,32 @@
 </head>
 <body>
 
+<!-- LOGIN APP (pantalla completa) -->
+<div id="modal-login-app" style="position:fixed;inset:0;background:#1f3a2e;display:flex;
+  justify-content:center;align-items:center;z-index:9999;padding:20px;">
+  <div style="width:100%;max-width:380px;background:white;border-radius:20px;padding:35px;
+    box-shadow:0 10px 40px rgba(0,0,0,.3);">
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="font-size:2.5rem;margin-bottom:8px;">💰</div>
+      <h2 style="color:#1f3a2e;margin:0;font-size:1.4rem;">PréstamosFácil</h2>
+      <p style="color:#999;font-size:.85rem;margin-top:6px;">Ingresa tus credenciales para continuar</p>
+    </div>
+    <label for="app-user">Usuario</label>
+    <input type="text" id="app-user" placeholder="Ingresa tu usuario" autocomplete="username"
+      style="margin-bottom:12px"/>
+    <label for="app-pass">Contraseña</label>
+    <input type="password" id="app-pass" placeholder="Ingresa tu contraseña" autocomplete="current-password"
+      style="margin-bottom:20px"/>
+    <button onclick="validarLoginApp()" style="width:100%;padding:14px;background:#1f3a2e;
+      color:white;border:none;border-radius:12px;font-size:1rem;font-weight:600;cursor:pointer;">
+      Ingresar
+    </button>
+  </div>
+</div>
+
+<!-- CONTENIDO PRINCIPAL -->
+<div id="app-contenido" style="display:none;">
+
 <nav>
   <h1>💰 PréstamosFácil</h1>
   <div>
@@ -47,6 +73,20 @@
     <button onclick="registrarCliente()">Registrar Cliente</button>
   </div>
   <h3>Clientes registrados</h3>
+
+  <!-- BUSCADOR -->
+  <div style="margin-bottom:16px; position:relative;">
+    <span style="position:absolute; left:14px; top:50%; transform:translateY(-50%); font-size:1rem;">🔍</span>
+    <input type="text" id="buscador-clientes"
+      placeholder="Buscar por nombre, cédula o dirección..."
+      oninput="filtrarClientes()"
+      style="padding-left:40px; background:#fff; border:1px solid #e4e4e4; border-radius:12px;
+             width:100%; padding-top:14px; padding-bottom:14px; font-size:.95rem;"/>
+  </div>
+  <p id="sin-resultados" style="display:none; color:#999; text-align:center; padding:10px;">
+    No se encontraron clientes con ese criterio.
+  </p>
+
   <table id="tabla-clientes">
     <thead><tr><th>#</th><th>Nombre</th><th>Cédula</th><th>Dirección</th><th>Acción</th></tr></thead>
     <tbody id="body-clientes"></tbody>
@@ -198,9 +238,17 @@
     </table>
   </div>
 
-  <button onclick="exportarPDF()" style="margin-bottom:20px; background:#c0392b;">
-    📄 Exportar PDF
-  </button>
+  <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+    <button onclick="exportarPDF()" style="background:#c0392b;">
+      📄 Exportar PDF
+    </button>
+    <button onclick="abrirModalCambiarClave('app')" style="background:#2980b9;">
+      🔑 Cambiar clave App
+    </button>
+    <button onclick="abrirModalCambiarClave('resumen')" style="background:#8e44ad;">
+      🔑 Cambiar clave Resumen
+    </button>
+  </div>
   <table id="tabla-resumen">
     <thead>
       <tr>
@@ -237,6 +285,8 @@
   <button onclick="mostrarSeccion('abonos')"  data-sec="abonos"><span>💳</span><span>Abonos</span></button>
   <button onclick="abrirLogin()"              data-sec="resumen"><span>📊</span><span>Resumen</span></button>
 </nav>
+
+</div><!-- fin app-contenido -->
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>

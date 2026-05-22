@@ -4,7 +4,7 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
-  getDatabase, ref, push, onValue, remove, update
+  getDatabase, ref, set, push, onValue, remove, update
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
@@ -173,6 +173,23 @@ function renderClientes(){
     tdBtn.appendChild(btn); tr.appendChild(tdBtn);
     tbody.appendChild(tr);
   });
+}
+
+// Filtrar clientes en tiempo real
+window.filtrarClientes = function(){
+  const q = document.getElementById('buscador-clientes').value.trim().toLowerCase();
+  const filas = document.querySelectorAll('#body-clientes tr');
+  let encontrados = 0;
+
+  filas.forEach(tr => {
+    const texto = tr.textContent.toLowerCase();
+    const visible = !q || texto.includes(q);
+    tr.style.display = visible ? '' : 'none';
+    if(visible) encontrados++;
+  });
+
+  const sinRes = document.getElementById('sin-resultados');
+  if(sinRes) sinRes.style.display = encontrados === 0 && q ? 'block' : 'none';
 }
 
 window.eliminarCliente = async function(key, clienteId, nombre){
@@ -852,18 +869,86 @@ window.exportarPDF = function(){
 }
 
 // =========================
-// LOGIN
+// AUTENTICACIÓN — credenciales en Firebase
 // =========================
-
-const HASH_USUARIO = '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918';
-const HASH_CLAVE   = '5994471abb01112afcc18159f6cc74b4f511b99806da59b3caf5a9c173cacfc5';
 
 async function hashStr(str){
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
 
+// Estado de sesión
+let sesionActiva     = false;
+let sesionResumen    = false;
+
+// Credenciales cargadas desde Firebase
+let credencialesApp     = null;
+let credencialesResumen = null;
+
+// Cargar credenciales desde Firebase al iniciar
+onValue(ref(db, 'credenciales/app'), snap => {
+  if(snap.val()){
+    credencialesApp = snap.val();
+  } else {
+    // Primera vez: inicializar credenciales por defecto (hasheadas)
+    hashStr('admin').then(hu => hashStr('12345').then(hc => {
+      set(ref(db, 'credenciales/app'), { usuario: hu, clave: hc });
+    }));
+  }
+});
+
+onValue(ref(db, 'credenciales/resumen'), snap => {
+  if(snap.val()){
+    credencialesResumen = snap.val();
+  } else {
+    hashStr('admin').then(hu => hashStr('admin123').then(hc => {
+      set(ref(db, 'credenciales/resumen'), { usuario: hu, clave: hc });
+    }));
+  }
+});
+
+// =========================
+// LOGIN GENERAL (acceso a la app)
+// =========================
+
+function mostrarLoginApp(){
+  document.getElementById('app-contenido').style.display    = 'none';
+  document.getElementById('modal-login-app').style.display  = 'flex';
+  setTimeout(() => document.getElementById('app-user').focus(), 100);
+}
+
+function ocultarLoginApp(){
+  document.getElementById('modal-login-app').style.display = 'none';
+  document.getElementById('app-contenido').style.display   = 'block';
+}
+
+window.validarLoginApp = async function(){
+  const usuario = document.getElementById('app-user').value.trim();
+  const clave   = document.getElementById('app-pass').value;
+
+  if(!usuario || !clave){ toast('Ingresa usuario y contraseña', false); return; }
+  if(!credencialesApp){ toast('Cargando... intenta de nuevo', false); return; }
+
+  const hashU = await hashStr(usuario);
+  const hashC = await hashStr(clave);
+
+  if(hashU === credencialesApp.usuario && hashC === credencialesApp.clave){
+    sesionActiva = true;
+    ocultarLoginApp();
+    mostrarSeccion('clientes');
+    toast('Bienvenido ✓');
+  } else {
+    toast('Usuario o contraseña incorrectos', false);
+    document.getElementById('app-pass').value = '';
+  }
+}
+
+// =========================
+// LOGIN RESUMEN
+// =========================
+
 window.abrirLogin = function(){
+  if(!sesionActiva){ toast('Debes iniciar sesión primero', false); return; }
   document.getElementById('modal-login').style.display = 'flex';
   document.getElementById('login-user').value = '';
   document.getElementById('login-pass').value = '';
@@ -877,10 +962,15 @@ window.cerrarLogin = function(){
 window.validarLogin = async function(){
   const usuario = document.getElementById('login-user').value.trim();
   const clave   = document.getElementById('login-pass').value;
+
   if(!usuario || !clave){ toast('Ingresa usuario y contraseña', false); return; }
+  if(!credencialesResumen){ toast('Cargando... intenta de nuevo', false); return; }
+
   const hashU = await hashStr(usuario);
   const hashC = await hashStr(clave);
-  if(hashU === HASH_USUARIO && hashC === HASH_CLAVE){
+
+  if(hashU === credencialesResumen.usuario && hashC === credencialesResumen.clave){
+    sesionResumen = true;
     cerrarLogin();
     mostrarSeccion('resumen');
     toast('Bienvenido administrador ✓');
@@ -890,11 +980,75 @@ window.validarLogin = async function(){
   }
 }
 
+// =========================
+// CAMBIAR CREDENCIALES
+// =========================
+
+window.abrirModalCambiarClave = function(tipo){
+  let modal = document.getElementById('modal-cambiar-clave');
+  if(modal) modal.remove();
+
+  modal = document.createElement('div');
+  modal.id = 'modal-cambiar-clave';
+  modal.className = 'modal-login';
+  modal.style.display = 'flex';
+
+  const titulo = tipo === 'app' ? 'Cambiar acceso a la App' : 'Cambiar acceso al Resumen';
+
+  modal.innerHTML = `
+    <div class="login-box" style="max-width:380px">
+      <h2>🔑 ${titulo}</h2>
+      <label>Nuevo usuario</label>
+      <input type="text" id="new-user" placeholder="Nuevo usuario" style="margin-bottom:12px" autocomplete="off"/>
+      <label>Nueva contraseña</label>
+      <input type="password" id="new-pass" placeholder="Nueva contraseña" style="margin-bottom:12px" autocomplete="off"/>
+      <label>Confirmar contraseña</label>
+      <input type="password" id="new-pass2" placeholder="Repetir contraseña" style="margin-bottom:16px" autocomplete="off"/>
+      <div class="login-buttons">
+        <button onclick="guardarNuevaClave('${tipo}')">Guardar</button>
+        <button onclick="document.getElementById('modal-cambiar-clave').remove()" class="btn-cancelar">Cancelar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('new-user').focus(), 100);
+}
+
+window.guardarNuevaClave = async function(tipo){
+  const usuario = document.getElementById('new-user').value.trim();
+  const clave   = document.getElementById('new-pass').value;
+  const clave2  = document.getElementById('new-pass2').value;
+
+  if(!usuario || !clave){ toast('Completa todos los campos', false); return; }
+  if(clave !== clave2){   toast('Las contraseñas no coinciden', false); return; }
+  if(clave.length < 4){   toast('La contraseña debe tener al menos 4 caracteres', false); return; }
+
+  const hashU = await hashStr(usuario);
+  const hashC = await hashStr(clave);
+
+  await set(ref(db, 'credenciales/' + tipo), { usuario: hashU, clave: hashC });
+
+  document.getElementById('modal-cambiar-clave').remove();
+  toast('Credenciales actualizadas correctamente ✓');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  // Enter en login app
+  document.getElementById('app-pass')?.addEventListener('keydown', e => {
+    if(e.key === 'Enter') validarLoginApp();
+  });
+  document.getElementById('app-user')?.addEventListener('keydown', e => {
+    if(e.key === 'Enter') document.getElementById('app-pass').focus();
+  });
+
+  // Enter en login resumen
   document.getElementById('login-pass')?.addEventListener('keydown', e => {
     if(e.key === 'Enter') validarLogin();
   });
   document.getElementById('login-user')?.addEventListener('keydown', e => {
     if(e.key === 'Enter') document.getElementById('login-pass').focus();
   });
+
+  // Mostrar login app al cargar
+  mostrarLoginApp();
 });
