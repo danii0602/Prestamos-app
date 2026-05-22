@@ -635,23 +635,124 @@ window.cerrarModalRenovar = function(){
 }
 
 // =========================
+// CAPITAL INGRESADO (Firebase)
+// =========================
+
+let capitalIngresos = []; // historial de ingresos
+
+onValue(ref(db, 'capitalIngresos'), snap => {
+  capitalIngresos = snap.val()
+    ? Object.entries(snap.val()).map(([k,v]) => ({...v, _key: k}))
+    : [];
+  renderDashboard();
+  renderHistorialCapital();
+});
+
+window.abrirModalCapital = function(){
+  let modal = document.getElementById('modal-capital');
+  if(modal) modal.remove();
+
+  modal = document.createElement('div');
+  modal.id = 'modal-capital';
+  modal.className = 'modal-login';
+  modal.style.display = 'flex';
+
+  modal.innerHTML = `
+    <div class="login-box" style="max-width:380px">
+      <h2>➕ Agregar Capital</h2>
+      <p style="color:#777;font-size:.85rem;margin-bottom:16px;">
+        Ingresa el monto de dinero nuevo que vas a destinar a préstamos.
+      </p>
+      <label>Monto ($)</label>
+      <input type="number" id="cap-monto" placeholder="Ej: 2000000" inputmode="numeric"
+        style="margin-bottom:12px"/>
+      <label>Nota (opcional)</label>
+      <input type="text" id="cap-nota" placeholder="Ej: Ahorro de enero"
+        style="margin-bottom:16px"/>
+      <div class="login-buttons">
+        <button onclick="guardarCapital()">Guardar</button>
+        <button onclick="cerrarModalCapital()" class="btn-cancelar">Cancelar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('cap-monto').focus(), 100);
+}
+
+window.cerrarModalCapital = function(){
+  const modal = document.getElementById('modal-capital');
+  if(modal) modal.remove();
+}
+
+window.guardarCapital = async function(){
+  const monto = parseFloat(document.getElementById('cap-monto').value);
+  const nota  = document.getElementById('cap-nota').value.trim();
+
+  if(!monto || monto <= 0){ toast('Ingresa un monto válido', false); return; }
+
+  await push(ref(db, 'capitalIngresos'), {
+    monto,
+    nota: nota || 'Sin nota',
+    fecha: new Date().toLocaleDateString('es-CO', { year:'numeric', month:'long', day:'numeric' }),
+    timestamp: Date.now()
+  });
+
+  cerrarModalCapital();
+  toast('Capital agregado correctamente ✓');
+}
+
+function renderHistorialCapital(){
+  const box   = document.getElementById('historial-capital-box');
+  const tbody = document.getElementById('body-historial-capital');
+  if(!tbody) return;
+  tbody.innerHTML = '';
+
+  if(capitalIngresos.length === 0){
+    if(box) box.style.display = 'none';
+    return;
+  }
+
+  if(box) box.style.display = 'block';
+
+  const ordenados = [...capitalIngresos].sort((a,b) => b.timestamp - a.timestamp);
+  ordenados.forEach((c, i) => {
+    const tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid #eee';
+    [i+1, c.fecha, moneda(c.monto), c.nota].forEach((val, idx) => {
+      const td = document.createElement('td');
+      td.textContent = val;
+      td.style.padding = '10px';
+      td.style.fontSize = '.9rem';
+      if(idx === 2) td.style.color = '#1f3a2e';
+      if(idx === 2) td.style.fontWeight = '600';
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+// =========================
 // DASHBOARD
 // =========================
 
 function renderDashboard(){
-  let capitalInicial  = 0;
   let interesesGenera = 0;
   let deudaTotal      = 0;
   let enLaCalle       = 0;
   let totalRecaudado  = 0;
 
   prestamos.forEach(p => {
-    capitalInicial  += p.capital;
     interesesGenera += (p.total - p.capital);
     deudaTotal      += p.total;
     enLaCalle       += p.saldo;
     totalRecaudado  += (p.total - p.saldo);
   });
+
+  // Capital total ingresado manualmente
+  const capitalIngresado = capitalIngresos.reduce((s, c) => s + c.monto, 0);
+
+  // Dinero en casa = capital ingresado - lo que está en la calle + lo recaudado
+  const enCasa = capitalIngresado - enLaCalle + totalRecaudado;
 
   const vencidas = prestamos.filter(p =>
     p.estado==='Activo' && p.diaPago && estadoCuota(p.diaPago).vencida
@@ -659,15 +760,33 @@ function renderDashboard(){
 
   function set(id, val){
     const el = document.getElementById(id);
-    if(el) el.textContent = typeof val === 'number' && val > 999 ? moneda(val) : val;
+    if(el) el.textContent = typeof val === 'number' ? moneda(val) : val;
   }
 
-  set('dash-capital-inicial', capitalInicial);
-  set('dash-intereses',       interesesGenera);
-  set('dash-deuda-total',     deudaTotal);
-  set('dash-en-calle',        enLaCalle);
-  set('dash-recaudado',       totalRecaudado);
-  set('dash-clientes',        clientes.length);
+  set('dash-capital-ingresado', capitalIngresado);
+  set('dash-intereses',         interesesGenera);
+  set('dash-deuda-total',       deudaTotal);
+  set('dash-en-calle',          enLaCalle);
+  set('dash-en-casa',           Math.max(0, enCasa));
+  set('dash-recaudado',         totalRecaudado);
+
+  const dc = document.getElementById('dash-clientes');
+  if(dc) dc.textContent = clientes.length;
+
+  // Alerta vencidas en resumen
+  const alertaEl = document.getElementById('alerta-vencidas-resumen');
+  if(alertaEl){
+    const listVenc = prestamos.filter(p =>
+      p.estado==='Activo' && p.diaPago && estadoCuota(p.diaPago).vencida
+    );
+    if(listVenc.length > 0){
+      alertaEl.style.display = 'block';
+      alertaEl.innerHTML = `⚠️ <strong>${listVenc.length} cliente(s) con cuota vencida:</strong> ` +
+        listVenc.map(p => p.clienteNombre).join(', ');
+    } else {
+      alertaEl.style.display = 'none';
+    }
+  }
 
   const dv = document.getElementById('dash-vencidas');
   if(dv){

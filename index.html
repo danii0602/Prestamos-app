@@ -113,12 +113,48 @@
 <!-- RESUMEN -->
 <section id="sec-resumen" style="display:none">
   <h2>Resumen de Préstamos</h2>
-  <div class="cards-dashboard">
-    <div class="card">
-      <h3>💰 Capital Inicial</h3>
-      <p id="dash-capital-inicial">$0</p>
-      <small style="color:#999;font-size:.75rem">Dinero que salió de tu bolsillo</small>
+
+  <!-- ALERTA CUOTAS VENCIDAS -->
+  <div id="alerta-vencidas-resumen" style="display:none; background:#fdecea; border-left:4px solid #e74c3c;
+    padding:14px 18px; border-radius:10px; margin-bottom:20px; font-size:.9rem; color:#c0392b;"></div>
+
+  <!-- CAPITAL DISPONIBLE -->
+  <div style="background:#fff; border-radius:14px; padding:24px; box-shadow:0 4px 18px rgba(0,0,0,.06);
+    margin-bottom:24px; border:1px solid #e4e4e4;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+      <div>
+        <h3 style="color:#1f3a2e; margin-bottom:4px;">💼 Capital Total Ingresado</h3>
+        <p id="dash-capital-ingresado" style="font-size:2rem; font-weight:700; color:#1f3a2e; margin:0;">$0</p>
+        <small style="color:#999;">Suma de todo el dinero que has metido</small>
+      </div>
+      <button onclick="abrirModalCapital()" style="background:#1f3a2e; color:white; border:none;
+        padding:12px 20px; border-radius:12px; cursor:pointer; font-weight:600; font-size:.9rem;">
+        ➕ Agregar Capital
+      </button>
     </div>
+
+    <!-- Barra de estado del dinero -->
+    <div style="margin-top:20px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; text-align:center;">
+      <div style="background:#fef9e7; border-radius:10px; padding:14px;">
+        <div style="font-size:.78rem; color:#999; margin-bottom:4px;">🏦 En la Calle</div>
+        <div id="dash-en-calle" style="font-size:1.3rem; font-weight:700; color:#d68910;">$0</div>
+        <div style="font-size:.7rem; color:#bbb; margin-top:2px;">pendiente por cobrar</div>
+      </div>
+      <div style="background:#edf3ef; border-radius:10px; padding:14px;">
+        <div style="font-size:.78rem; color:#999; margin-bottom:4px;">🏠 En Casa</div>
+        <div id="dash-en-casa" style="font-size:1.3rem; font-weight:700; color:#1f3a2e;">$0</div>
+        <div style="font-size:.7rem; color:#bbb; margin-top:2px;">capital + abonos recibidos</div>
+      </div>
+      <div style="background:#edf3ef; border-radius:10px; padding:14px;">
+        <div style="font-size:.78rem; color:#999; margin-bottom:4px;">💵 Recaudado</div>
+        <div id="dash-recaudado" style="font-size:1.3rem; font-weight:700; color:#27ae60;">$0</div>
+        <div style="font-size:.7rem; color:#bbb; margin-top:2px;">abonos recibidos</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TARJETAS -->
+  <div class="cards-dashboard">
     <div class="card">
       <h3>📈 Intereses Generados</h3>
       <p id="dash-intereses" style="color:#27ae60">$0</p>
@@ -130,16 +166,6 @@
       <small style="color:#999;font-size:.75rem">Capital + todos los intereses</small>
     </div>
     <div class="card">
-      <h3>🏦 Dinero en la Calle</h3>
-      <p id="dash-en-calle" style="color:#d68910">$0</p>
-      <small style="color:#999;font-size:.75rem">Saldo pendiente por cobrar</small>
-    </div>
-    <div class="card">
-      <h3>💵 Total Recaudado</h3>
-      <p id="dash-recaudado" style="color:#27ae60">$0</p>
-      <small style="color:#999;font-size:.75rem">Abonos recibidos hasta hoy</small>
-    </div>
-    <div class="card">
       <h3>👥 Clientes</h3>
       <p id="dash-clientes">0</p>
       <small style="color:#999;font-size:.75rem">Total registrados</small>
@@ -147,9 +173,31 @@
     <div class="card">
       <h3>⚠️ Cuotas Vencidas</h3>
       <p id="dash-vencidas" style="color:#e74c3c">0</p>
-      <small style="color:#999;font-size:.75rem">Requieren atención</small>
+      <small style="color:#999;font-size:.75rem">Requieren atención urgente</small>
     </div>
   </div>
+
+  <!-- HISTORIAL DE INGRESOS -->
+  <div id="historial-capital-box" style="display:none; background:#fff; border-radius:14px;
+    padding:20px; box-shadow:0 4px 18px rgba(0,0,0,.06); margin-bottom:24px; border:1px solid #e4e4e4;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <h3 style="color:#1f3a2e; margin:0;">📋 Historial de Capital Ingresado</h3>
+      <button onclick="document.getElementById('historial-capital-box').style.display='none'"
+        style="background:transparent; border:none; color:#999; font-size:1.2rem; cursor:pointer;">✕</button>
+    </div>
+    <table style="width:100%; border-collapse:collapse;">
+      <thead style="background:#1f3a2e; color:white;">
+        <tr>
+          <th style="padding:10px; text-align:left; font-size:.82rem;">#</th>
+          <th style="padding:10px; text-align:left; font-size:.82rem;">Fecha</th>
+          <th style="padding:10px; text-align:left; font-size:.82rem;">Monto</th>
+          <th style="padding:10px; text-align:left; font-size:.82rem;">Nota</th>
+        </tr>
+      </thead>
+      <tbody id="body-historial-capital"></tbody>
+    </table>
+  </div>
+
   <button onclick="exportarPDF()" style="margin-bottom:20px; background:#c0392b;">
     📄 Exportar PDF
   </button>
