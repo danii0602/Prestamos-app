@@ -28,10 +28,10 @@ window.addEventListener('beforeinstallprompt', e => {
 
 if(btnInstalar){
   btnInstalar.addEventListener('click', async () => {
-    if (!deferredPrompt) return;
+    if(!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted' && banner) banner.style.display = 'none';
+    if(outcome === 'accepted' && banner) banner.style.display = 'none';
     deferredPrompt = null;
   });
 }
@@ -48,32 +48,30 @@ window.addEventListener('appinstalled', () => {
 });
 
 // =============================================
-// RESALTAR BOTÓN ACTIVO EN NAV INFERIOR
-// FIX: esperar a que app.js (módulo) defina mostrarSeccion en window
+// NAV INFERIOR — marcar botón activo
+// NO depende de mostrarSeccion, solo escucha clicks
 // =============================================
 
-function marcarNavActivo(id) {
+function marcarNavActivo(id){
   document.querySelectorAll('#nav-bottom button').forEach(btn => {
     btn.classList.toggle('activo', btn.dataset.sec === id);
   });
 }
 
-// Interceptar clicks del nav inferior directamente
+// Escuchar clicks en nav inferior
 document.querySelectorAll('#nav-bottom button').forEach(btn => {
   btn.addEventListener('click', () => {
-    marcarNavActivo(btn.dataset.sec);
+    if(btn.dataset.sec) marcarNavActivo(btn.dataset.sec);
   });
 });
 
-// Interceptar clicks del nav superior
+// Escuchar clicks en nav superior
 document.querySelectorAll('nav:first-of-type button').forEach(btn => {
   btn.addEventListener('click', () => {
-    const sec = btn.getAttribute('onclick')?.match(/'(\w+)'/)?.[1];
-    if(sec) marcarNavActivo(sec);
+    const match = btn.getAttribute('onclick')?.match(/'(\w+)'/);
+    if(match) marcarNavActivo(match[1]);
   });
 });
 
 // Marcar clientes como activo al cargar
-window.addEventListener('load', () => {
-  marcarNavActivo('clientes');
-});
+window.addEventListener('load', () => marcarNavActivo('clientes'));
